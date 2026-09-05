@@ -183,6 +183,12 @@ function parseVlessUrl(url) {
             if (params.get('sid')) realityOpts['short-id'] = params.get('sid');
             if (params.get('spx')) realityOpts['spider-x'] = params.get('spx');
             if (Object.keys(realityOpts).length > 0) {
+                // 抗量子密钥交换需要服务端 Xray 同样支持，逐节点显式声明才输出，避免拖垮旧服务端。
+                // 该字段只有 Mihomo 读取，其余渲染器仅取 public-key/short-id/spider-x，不会带到别的格式。
+                const mlkemFlag = params.get('mlkem') ?? params.get('support-x25519mlkem768');
+                if (mlkemFlag === '1' || mlkemFlag === 'true') {
+                    realityOpts['support-x25519mlkem768'] = true;
+                }
                 proxy['reality-opts'] = realityOpts;
             }
         } else if (security === 'tls') {

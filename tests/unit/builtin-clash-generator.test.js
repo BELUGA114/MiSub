@@ -46,6 +46,39 @@ describe('Clash 内置生成器', () => {
         expect(proxiesOnly.proxies[0]).not.toHaveProperty('metadata');
     });
 
+    it('REALITY 节点未声明 mlkem 参数时不应输出 support-x25519mlkem768', () => {
+        const node = 'vless://uuid-reality@reality.example.com:443?security=reality&type=tcp&sni=addons.mozilla.org&pbk=testpublickey&sid=abcd#Reality-Plain';
+
+        const proxy = yaml.load(generateProxiesOnly(node)).proxies[0];
+
+        expect(proxy['reality-opts']).toEqual({ 'public-key': 'testpublickey', 'short-id': 'abcd' });
+    });
+
+    it('REALITY 节点声明 mlkem=1 时应输出 support-x25519mlkem768', () => {
+        const node = 'vless://uuid-reality@reality.example.com:443?security=reality&type=tcp&sni=addons.mozilla.org&pbk=testpublickey&sid=abcd&mlkem=1#Reality-MLKEM';
+
+        const proxy = yaml.load(generateProxiesOnly(node)).proxies[0];
+
+        expect(proxy['reality-opts']['support-x25519mlkem768']).toBe(true);
+        expect(proxy['reality-opts']['public-key']).toBe('testpublickey');
+    });
+
+    it('REALITY 节点使用 support-x25519mlkem768=true 别名时同样生效', () => {
+        const node = 'vless://uuid-reality@reality.example.com:443?security=reality&type=tcp&pbk=testpublickey&support-x25519mlkem768=true#Reality-Alias';
+
+        const proxy = yaml.load(generateProxiesOnly(node)).proxies[0];
+
+        expect(proxy['reality-opts']['support-x25519mlkem768']).toBe(true);
+    });
+
+    it('mlkem 参数取非真值时不应输出 support-x25519mlkem768', () => {
+        const node = 'vless://uuid-reality@reality.example.com:443?security=reality&type=tcp&pbk=testpublickey&mlkem=0#Reality-Off';
+
+        const proxy = yaml.load(generateProxiesOnly(node)).proxies[0];
+
+        expect(proxy['reality-opts']).not.toHaveProperty('support-x25519mlkem768');
+    });
+
     it('应将 TUIC URL 的 congestion_control 转为 Clash/Mihomo 兼容字段', () => {
         const node = 'tuic://uuid-tuic:pass-tuic@tuic.example.com:443?sni=tuic.example.com&congestion_control=bbr&udp_relay_mode=native&alpn=h3&allow_insecure=1#TUICNode';
 

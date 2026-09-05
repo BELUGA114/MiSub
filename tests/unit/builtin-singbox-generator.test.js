@@ -131,4 +131,14 @@ describe('Built-in Sing-box generator', () => {
         expect(geoipProvider.url).toContain('sing-geoip');
         expect(geoipProvider.format).toBe('binary');
     });
+
+    it('REALITY 的 support-x25519mlkem768 是 Mihomo 专属字段，不应出现在 sing-box 输出中', () => {
+        const node = 'vless://uuid-reality@reality.example.com:443?security=reality&type=tcp&sni=addons.mozilla.org&pbk=testpublickey&sid=abcd&mlkem=1#Reality-MLKEM';
+
+        const result = generateBuiltinSingboxConfig(node);
+        const outbound = JSON.parse(result).outbounds.find(item => item.type === 'vless');
+
+        expect(outbound.tls.reality).toEqual({ enabled: true, public_key: 'testpublickey', short_id: 'abcd' });
+        expect(result).not.toContain('mlkem');
+    });
 });
