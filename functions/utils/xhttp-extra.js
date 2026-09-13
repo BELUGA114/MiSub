@@ -16,7 +16,7 @@ function xmuxToReuseSettings(xmux) {
         if (typeof v === 'string') {
             if (v !== '') reuse[dst] = v;
         } else if (typeof v === 'number' && Number.isFinite(v)) {
-            reuse[dst] = String(v);
+            reuse[dst] = String(Math.trunc(v));
         }
     };
     set('maxConnections', 'max-connections');

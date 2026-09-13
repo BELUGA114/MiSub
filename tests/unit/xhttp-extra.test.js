@@ -82,6 +82,11 @@ describe('parseXhttpExtra 正向映射', () => {
         expect(opts['reuse-settings']).toEqual({ 'max-concurrency': '4', 'h-keep-alive-period': 30 });
     });
 
+    it('xmux 分数值应向零截断（对齐 mihomo strconv.FormatInt）', () => {
+        const opts = parseXhttpExtra({ xmux: { maxConcurrency: 1.5, hMaxRequestTimes: 600.9 } });
+        expect(opts['reuse-settings']).toEqual({ 'max-concurrency': '1', 'h-max-request-times': '600' });
+    });
+
     it('空 xmux 或非对象 xmux 不产生 reuse-settings', () => {
         expect(parseXhttpExtra({ xmux: {} })['reuse-settings']).toBeUndefined();
         expect(parseXhttpExtra({ xmux: 'x' })['reuse-settings']).toBeUndefined();
