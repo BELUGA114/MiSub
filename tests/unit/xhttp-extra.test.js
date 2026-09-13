@@ -373,4 +373,29 @@ describe('convertClashProxyToUrl 集成（Clash → VLESS URL）', () => {
         expect(wsUrl).toContain('type=ws');
         expect(wsUrl).toContain('path=%2Fws');
     });
+
+    it('应输出 xhttp 的 host 参数', () => {
+        const url = convertClashProxyToUrl({
+            ...proxy,
+            'xhttp-opts': { ...proxy['xhttp-opts'], host: 'test.example.com' }
+        });
+        expect(url).toContain('host=test.example.com');
+    });
+
+    it('YAML 奇形怪状的 xhttp-opts 不应抛错且不产生垃圾参数', () => {
+        const url = convertClashProxyToUrl({
+            ...proxy,
+            'xhttp-opts': {
+                path: null,
+                mode: 123,
+                'reuse-settings': null,
+                'download-settings': null
+            }
+        });
+        expect(url).toContain('type=xhttp');
+        expect(url).not.toContain('path=null');
+        expect(url).toContain('mode=123');
+        expect(url).not.toContain('mode=undefined');
+        expect(url).not.toContain('extra=');
+    });
 });
