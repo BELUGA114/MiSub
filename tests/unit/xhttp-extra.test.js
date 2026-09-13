@@ -87,6 +87,58 @@ describe('parseXhttpExtra 正向映射', () => {
         expect(parseXhttpExtra({ xmux: 'x' })['reuse-settings']).toBeUndefined();
     });
 
+    it('downloadSettings 应映射为 download-settings（含 tls 与嵌套 xmux）', () => {
+        const opts = parseXhttpExtra({
+            downloadSettings: {
+                address: 'dl.example.com',
+                port: 443,
+                security: 'tls',
+                tlsSettings: {
+                    serverName: 'dl.example.com',
+                    fingerprint: 'chrome',
+                    alpn: ['h2', 'http/1.1'],
+                    allowInsecure: true
+                },
+                xhttpSettings: {
+                    path: '/dl',
+                    host: 'dl.example.com',
+                    extra: { xmux: { maxConcurrency: '2' } }
+                }
+            }
+        });
+
+        expect(opts['download-settings']).toEqual({
+            server: 'dl.example.com',
+            port: 443,
+            tls: true,
+            servername: 'dl.example.com',
+            'client-fingerprint': 'chrome',
+            alpn: ['h2', 'http/1.1'],
+            'skip-cert-verify': true,
+            path: '/dl',
+            host: 'dl.example.com',
+            'reuse-settings': { 'max-concurrency': '2' }
+        });
+    });
+
+    it('security=reality 时应输出 reality-opts', () => {
+        const opts = parseXhttpExtra({
+            downloadSettings: {
+                address: 'dl.example.com',
+                port: 443,
+                security: 'reality',
+                realitySettings: { publicKey: 'pbk', shortId: 'sid' }
+            }
+        });
+
+        expect(opts['download-settings']).toEqual({
+            server: 'dl.example.com',
+            port: 443,
+            tls: true,
+            'reality-opts': { 'public-key': 'pbk', 'short-id': 'sid' }
+        });
+    });
+
     it('空对象与未知字段返回空对象', () => {
         expect(parseXhttpExtra({})).toEqual({});
         expect(parseXhttpExtra({ unknownField: 'x' })).toEqual({});
