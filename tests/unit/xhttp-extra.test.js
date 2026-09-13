@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseXhttpExtra } from '../../functions/utils/xhttp-extra.js';
+import { parseXhttpExtra, serializeXhttpExtra } from '../../functions/utils/xhttp-extra.js';
 
 // 用户实例中的完整 extra（Xray camelCase）
 const FULL_EXTRA = {
@@ -147,5 +147,133 @@ describe('parseXhttpExtra 正向映射', () => {
     it('空对象与未知字段返回空对象', () => {
         expect(parseXhttpExtra({})).toEqual({});
         expect(parseXhttpExtra({ unknownField: 'x' })).toEqual({});
+    });
+});
+
+describe('serializeXhttpExtra 反向序列化', () => {
+    it('应把 mihomo 字段逆向为 Xray extra，session 系列使用规范名 sessionID*', () => {
+        const extra = serializeXhttpExtra({
+            path: '/test',
+            host: 'test.example.com',
+            mode: 'auto',
+            'x-padding-bytes': '100-1000',
+            'x-padding-obfs-mode': true,
+            'x-padding-key': 'x',
+            'x-padding-header': 'Referer',
+            'x-padding-placement': 'queryInHeader',
+            'x-padding-method': 'tokenish',
+            'seq-placement': 'path',
+            'session-placement': 'path',
+            'session-table': 'Base62',
+            'session-length': '12-20',
+            'reuse-settings': {
+                'max-connections': '0',
+                'max-concurrency': '1',
+                'c-max-reuse-times': '0',
+                'h-max-request-times': '600-900',
+                'h-max-reusable-secs': '1800-3000',
+                'h-keep-alive-period': 0
+            }
+        });
+
+        expect(extra).toEqual({
+            xPaddingBytes: '100-1000',
+            xPaddingObfsMode: true,
+            xPaddingKey: 'x',
+            xPaddingHeader: 'Referer',
+            xPaddingPlacement: 'queryInHeader',
+            xPaddingMethod: 'tokenish',
+            seqPlacement: 'path',
+            sessionIDPlacement: 'path',
+            sessionIDTable: 'Base62',
+            sessionIDLength: '12-20',
+            xmux: {
+                maxConnections: '0',
+                maxConcurrency: '1',
+                cMaxReuseTimes: '0',
+                hMaxRequestTimes: '600-900',
+                hMaxReusableSecs: '1800-3000',
+                hKeepAlivePeriod: 0
+            }
+        });
+    });
+
+    it('不应输出 path/host/mode 与 noGRPCHeader=false', () => {
+        const extra = serializeXhttpExtra({ path: '/test', mode: 'auto', 'no-grpc-header': false });
+        expect(extra).toBeNull();
+    });
+
+    it('no-grpc-header 为 true 时输出 noGRPCHeader: true', () => {
+        const extra = serializeXhttpExtra({ 'no-grpc-header': true });
+        expect(extra).toEqual({ noGRPCHeader: true });
+    });
+
+    it('数字字段原样保留为数字', () => {
+        const extra = serializeXhttpExtra({
+            'uplink-chunk-size': 2048,
+            'sc-max-each-post-bytes': 1000000,
+            'sc-min-posts-interval-ms': 30
+        });
+        expect(extra).toEqual({
+            uplinkChunkSize: 2048,
+            scMaxEachPostBytes: 1000000,
+            scMinPostsIntervalMs: 30
+        });
+    });
+
+    it('download-settings 应逆向为 downloadSettings，含 tls 与 xhttpSettings', () => {
+        const extra = serializeXhttpExtra({
+            'download-settings': {
+                server: 'dl.example.com',
+                port: 443,
+                tls: true,
+                servername: 'dl.example.com',
+                'client-fingerprint': 'chrome',
+                alpn: ['h2', 'http/1.1'],
+                'skip-cert-verify': true,
+                path: '/dl',
+                host: 'dl.example.com',
+                'reuse-settings': { 'max-concurrency': '2' }
+            }
+        });
+
+        expect(extra).toEqual({
+            downloadSettings: {
+                address: 'dl.example.com',
+                port: 443,
+                security: 'tls',
+                tlsSettings: {
+                    serverName: 'dl.example.com',
+                    fingerprint: 'chrome',
+                    alpn: ['h2', 'http/1.1'],
+                    allowInsecure: true
+                },
+                xhttpSettings: {
+                    path: '/dl',
+                    host: 'dl.example.com',
+                    extra: { xmux: { maxConcurrency: '2' } }
+                }
+            }
+        });
+    });
+
+    it('reality-opts 存在时 security 输出 reality', () => {
+        const extra = serializeXhttpExtra({
+            'download-settings': {
+                server: 'dl.example.com',
+                port: 443,
+                tls: true,
+                'reality-opts': { 'public-key': 'pbk', 'short-id': 'sid' }
+            }
+        });
+
+        expect(extra.downloadSettings.security).toBe('reality');
+        expect(extra.downloadSettings.realitySettings).toEqual({ publicKey: 'pbk', shortId: 'sid' });
+    });
+
+    it('空对象或不含 extra 字段时返回 null', () => {
+        expect(serializeXhttpExtra({})).toBeNull();
+        expect(serializeXhttpExtra({ path: '/x', host: 'h', mode: 'auto' })).toBeNull();
+        expect(serializeXhttpExtra(null)).toBeNull();
     });
 });

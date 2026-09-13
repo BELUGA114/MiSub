@@ -172,3 +172,131 @@ function parseDownloadSettings(dsAny) {
 
     return ds;
 }
+
+/**
+ * mihomo reuse-settings → xmux map（xmuxToReuseSettings 的逆映射）
+ */
+function reuseSettingsToXmux(reuse) {
+    const xmux = {};
+    const set = (src, dst) => {
+        const v = reuse[src];
+        if (typeof v === 'string') {
+            if (v !== '') xmux[dst] = v;
+        } else if (typeof v === 'number' && Number.isFinite(v)) {
+            xmux[dst] = String(Math.trunc(v));
+        }
+    };
+    set('max-connections', 'maxConnections');
+    set('max-concurrency', 'maxConcurrency');
+    set('c-max-reuse-times', 'cMaxReuseTimes');
+    set('h-max-request-times', 'hMaxRequestTimes');
+    set('h-max-reusable-secs', 'hMaxReusableSecs');
+    if (typeof reuse['h-keep-alive-period'] === 'number' && Number.isFinite(reuse['h-keep-alive-period'])) {
+        xmux.hKeepAlivePeriod = Math.trunc(reuse['h-keep-alive-period']);
+    }
+    return xmux;
+}
+
+/**
+ * mihomo download-settings → Xray downloadSettings（parseDownloadSettings 的逆映射）
+ */
+function serializeDownloadSettings(ds) {
+    const out = {};
+    if (typeof ds.server === 'string' && ds.server !== '') out.address = ds.server;
+    if (typeof ds.port === 'number' && Number.isFinite(ds.port)) out.port = Math.trunc(ds.port);
+
+    const hasReality = isPlainObject(ds['reality-opts'])
+        && (typeof ds['reality-opts']['public-key'] === 'string' || typeof ds['reality-opts']['short-id'] === 'string');
+    if (ds.tls === true || hasReality) {
+        out.security = hasReality ? 'reality' : 'tls';
+        const tlsSettings = {};
+        if (typeof ds.servername === 'string' && ds.servername !== '') tlsSettings.serverName = ds.servername;
+        if (typeof ds['client-fingerprint'] === 'string' && ds['client-fingerprint'] !== '') {
+            tlsSettings.fingerprint = ds['client-fingerprint'];
+        }
+        if (Array.isArray(ds.alpn) && ds.alpn.length > 0) tlsSettings.alpn = ds.alpn;
+        if (ds['skip-cert-verify'] === true) tlsSettings.allowInsecure = true;
+        if (Object.keys(tlsSettings).length > 0) out.tlsSettings = tlsSettings;
+        if (hasReality) {
+            const realitySettings = {};
+            if (typeof ds['reality-opts']['public-key'] === 'string' && ds['reality-opts']['public-key'] !== '') {
+                realitySettings.publicKey = ds['reality-opts']['public-key'];
+            }
+            if (typeof ds['reality-opts']['short-id'] === 'string' && ds['reality-opts']['short-id'] !== '') {
+                realitySettings.shortId = ds['reality-opts']['short-id'];
+            }
+            if (Object.keys(realitySettings).length > 0) out.realitySettings = realitySettings;
+        }
+    }
+
+    const xhttpSettings = {};
+    if (typeof ds.path === 'string' && ds.path !== '') xhttpSettings.path = ds.path;
+    if (typeof ds.host === 'string' && ds.host !== '') xhttpSettings.host = ds.host;
+    if (isPlainObject(ds.headers) && Object.keys(ds.headers).length > 0) xhttpSettings.headers = ds.headers;
+    if (isPlainObject(ds['reuse-settings']) && Object.keys(ds['reuse-settings']).length > 0) {
+        xhttpSettings.extra = { xmux: reuseSettingsToXmux(ds['reuse-settings']) };
+    }
+    if (Object.keys(xhttpSettings).length > 0) out.xhttpSettings = xhttpSettings;
+
+    return out;
+}
+
+/**
+ * 把 mihomo xhttp-opts 逆向序列化为 Xray extra JSON 对象。
+ * path/host/mode 不属于 extra，不输出。
+ * @param {Object} xhttpOpts - mihomo xhttp-opts（含 path/host/mode 与 extra 派生字段）
+ * @returns {Object|null} Xray extra 对象；不含任何 extra 派生字段时返回 null
+ */
+export function serializeXhttpExtra(xhttpOpts) {
+    if (!isPlainObject(xhttpOpts)) return null;
+
+    const extra = {};
+    const getStr = (src, dst) => {
+        if (typeof xhttpOpts[src] === 'string' && xhttpOpts[src] !== '') {
+            extra[dst] = xhttpOpts[src];
+        }
+    };
+
+    if (xhttpOpts['no-grpc-header'] === true) extra.noGRPCHeader = true;
+
+    getStr('x-padding-bytes', 'xPaddingBytes');
+    if (typeof xhttpOpts['x-padding-obfs-mode'] === 'boolean') {
+        extra.xPaddingObfsMode = xhttpOpts['x-padding-obfs-mode'];
+    }
+    getStr('x-padding-key', 'xPaddingKey');
+    getStr('x-padding-header', 'xPaddingHeader');
+    getStr('x-padding-placement', 'xPaddingPlacement');
+    getStr('x-padding-method', 'xPaddingMethod');
+    getStr('uplink-http-method', 'uplinkHTTPMethod');
+
+    // 输出 Xray 规范名 sessionID*（mihomo 正向解析两种命名均接受）
+    getStr('session-placement', 'sessionIDPlacement');
+    getStr('session-key', 'sessionIDKey');
+    getStr('session-table', 'sessionIDTable');
+    getStr('session-length', 'sessionIDLength');
+
+    getStr('seq-placement', 'seqPlacement');
+    getStr('seq-key', 'seqKey');
+    getStr('uplink-data-placement', 'uplinkDataPlacement');
+    getStr('uplink-data-key', 'uplinkDataKey');
+
+    const getInt = (src, dst) => {
+        if (typeof xhttpOpts[src] === 'number' && Number.isFinite(xhttpOpts[src])) {
+            extra[dst] = Math.trunc(xhttpOpts[src]);
+        }
+    };
+    getInt('uplink-chunk-size', 'uplinkChunkSize');
+    getInt('sc-max-each-post-bytes', 'scMaxEachPostBytes');
+    getInt('sc-min-posts-interval-ms', 'scMinPostsIntervalMs');
+
+    if (isPlainObject(xhttpOpts['reuse-settings']) && Object.keys(xhttpOpts['reuse-settings']).length > 0) {
+        extra.xmux = reuseSettingsToXmux(xhttpOpts['reuse-settings']);
+    }
+
+    if (isPlainObject(xhttpOpts['download-settings'])) {
+        const ds = serializeDownloadSettings(xhttpOpts['download-settings']);
+        if (Object.keys(ds).length > 0) extra.downloadSettings = ds;
+    }
+
+    return Object.keys(extra).length > 0 ? extra : null;
+}
