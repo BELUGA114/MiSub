@@ -3,6 +3,7 @@
  */
 
 import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
+import { parseXhttpExtra } from './xhttp-extra.js';
 
 /**
  * 解析 URL 查询参数
@@ -144,6 +145,16 @@ function parseVlessUrl(url) {
                 xhttpOpts.headers = { Host: host };
             }
             if (params.get('mode')) xhttpOpts.mode = params.get('mode');
+            // Xray extra JSON → mihomo kebab-case 字段（对齐 mihomo common/convert/v.go）
+            const extraParam = params.get('extra');
+            if (extraParam) {
+                try {
+                    const extraObj = JSON.parse(extraParam);
+                    Object.assign(xhttpOpts, parseXhttpExtra(extraObj));
+                } catch {
+                    // 非法 JSON 静默忽略，节点按基础字段导入（对齐 mihomo 行为）
+                }
+            }
             if (Object.keys(xhttpOpts).length > 0) {
                 proxy['xhttp-opts'] = xhttpOpts;
             }

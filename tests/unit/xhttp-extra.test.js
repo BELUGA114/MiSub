@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseXhttpExtra, serializeXhttpExtra } from '../../functions/utils/xhttp-extra.js';
+import { urlToClashProxy } from '../../functions/utils/url-to-clash.js';
 
 // 用户实例中的完整 extra（Xray camelCase）
 const FULL_EXTRA = {
@@ -275,5 +276,47 @@ describe('serializeXhttpExtra 反向序列化', () => {
         expect(serializeXhttpExtra({})).toBeNull();
         expect(serializeXhttpExtra({ path: '/x', host: 'h', mode: 'auto' })).toBeNull();
         expect(serializeXhttpExtra(null)).toBeNull();
+    });
+});
+
+// 用户提供的真实链接（extra 为完整 JSON 的 URL 编码）
+const USER_URL = 'vless://5f33ebda-7fb0-4977-bae3-1b55f3cdbed0@test.example.com:56239?encryption=none&security=none&type=xhttp&path=%2Ftest&mode=auto&extra=%7B%22mode%22%3A%22auto%22%2C%22seqPlacement%22%3A%22path%22%2C%22sessionIDLength%22%3A%2212-20%22%2C%22sessionIDPlacement%22%3A%22path%22%2C%22sessionIDTable%22%3A%22Base62%22%2C%22sessionPlacement%22%3A%22path%22%2C%22xPaddingBytes%22%3A%22100-1000%22%2C%22xPaddingHeader%22%3A%22Referer%22%2C%22xPaddingKey%22%3A%22x%22%2C%22xPaddingMethod%22%3A%22tokenish%22%2C%22xPaddingObfsMode%22%3Atrue%2C%22xPaddingPlacement%22%3A%22queryInHeader%22%2C%22xmux%22%3A%7B%22cMaxReuseTimes%22%3A0%2C%22hKeepAlivePeriod%22%3A0%2C%22hMaxRequestTimes%22%3A%22600-900%22%2C%22hMaxReusableSecs%22%3A%221800-3000%22%2C%22maxConcurrency%22%3A%221%22%2C%22maxConnections%22%3A0%7D%7D#test-test';
+
+describe('parseVlessUrl 集成（URL → Clash 中间格式）', () => {
+    it('应解析带 extra 的 vless+xhttp 链接并写入 xhttp-opts', () => {
+        const proxy = urlToClashProxy(USER_URL);
+
+        expect(proxy.type).toBe('vless');
+        expect(proxy.network).toBe('xhttp');
+        expect(proxy['xhttp-opts'].path).toBe('/test');
+        expect(proxy['xhttp-opts'].mode).toBe('auto');
+        expect(proxy['xhttp-opts']['x-padding-bytes']).toBe('100-1000');
+        expect(proxy['xhttp-opts']['x-padding-obfs-mode']).toBe(true);
+        expect(proxy['xhttp-opts']['session-placement']).toBe('path');
+        expect(proxy['xhttp-opts']['reuse-settings']['h-max-request-times']).toBe('600-900');
+        expect(proxy['xhttp-opts']['reuse-settings']['h-keep-alive-period']).toBe(0);
+    });
+
+    it('extra 为非法 JSON 时应静默忽略，节点仍正常导入', () => {
+        const url = 'vless://uuid@1.2.3.4:443?type=xhttp&path=%2Ftest&extra=%7Bnot-json';
+        const proxy = urlToClashProxy(url);
+
+        expect(proxy['xhttp-opts'].path).toBe('/test');
+        expect(proxy['xhttp-opts']['x-padding-bytes']).toBeUndefined();
+    });
+
+    it('extra 为合法 JSON 但非对象时应静默忽略', () => {
+        const url = 'vless://uuid@1.2.3.4:443?type=xhttp&path=%2Ftest&extra=%5B1%2C2%5D';
+        const proxy = urlToClashProxy(url);
+
+        expect(proxy['xhttp-opts'].path).toBe('/test');
+        expect(proxy['xhttp-opts']['reuse-settings']).toBeUndefined();
+    });
+
+    it('无 extra 参数时行为不变', () => {
+        const url = 'vless://uuid@1.2.3.4:443?type=xhttp&path=%2Ftest&mode=auto';
+        const proxy = urlToClashProxy(url);
+
+        expect(proxy['xhttp-opts']).toEqual({ path: '/test', mode: 'auto' });
     });
 });
