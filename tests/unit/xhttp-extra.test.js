@@ -64,7 +64,7 @@ describe('parseXhttpExtra 正向映射', () => {
     });
 
     it('类型不符的字段应跳过（对齐 mihomo 类型断言失败即跳过）', () => {
-        const opts = parseXhttpExtra({ xPaddingBytes: 123, xPaddingKey: true, uplinkChunkSize: 'big' });
+        const opts = parseXhttpExtra({ xPaddingBytes: 123, xPaddingKey: true, uplinkChunkSize: true });
         expect(opts['x-padding-bytes']).toBeUndefined();
         expect(opts['x-padding-key']).toBeUndefined();
         expect(opts['uplink-chunk-size']).toBeUndefined();
@@ -152,6 +152,30 @@ describe('parseXhttpExtra 正向映射', () => {
         expect(parseXhttpExtra({})).toEqual({});
         expect(parseXhttpExtra({ unknownField: 'x' })).toEqual({});
     });
+
+    it('extra.headers 应浅拷贝输出为 headers 字段', () => {
+        const opts = parseXhttpExtra({
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+        });
+        expect(opts.headers).toEqual({ 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' });
+    });
+
+    it('分包节奏字段应接受区间字符串并原样输出', () => {
+        const opts = parseXhttpExtra({
+            uplinkChunkSize: '2000-3000',
+            scMaxEachPostBytes: '4000-8000',
+            scMinPostsIntervalMs: '10-50'
+        });
+        expect(opts['uplink-chunk-size']).toBe('2000-3000');
+        expect(opts['sc-max-each-post-bytes']).toBe('4000-8000');
+        expect(opts['sc-min-posts-interval-ms']).toBe('10-50');
+    });
+
+    it('分包节奏字段的数字应转为截断后的十进制字符串', () => {
+        const opts = parseXhttpExtra({ uplinkChunkSize: 2048.7, scMaxEachPostBytes: 1000000 });
+        expect(opts['uplink-chunk-size']).toBe('2048');
+        expect(opts['sc-max-each-post-bytes']).toBe('1000000');
+    });
 });
 
 describe('serializeXhttpExtra 反向序列化', () => {
@@ -212,17 +236,42 @@ describe('serializeXhttpExtra 反向序列化', () => {
         expect(extra).toEqual({ noGRPCHeader: true });
     });
 
-    it('数字字段原样保留为数字', () => {
+    it('分包节奏字段的数字应序列化为字符串', () => {
         const extra = serializeXhttpExtra({
             'uplink-chunk-size': 2048,
             'sc-max-each-post-bytes': 1000000,
             'sc-min-posts-interval-ms': 30
         });
         expect(extra).toEqual({
-            uplinkChunkSize: 2048,
-            scMaxEachPostBytes: 1000000,
-            scMinPostsIntervalMs: 30
+            uplinkChunkSize: '2048',
+            scMaxEachPostBytes: '1000000',
+            scMinPostsIntervalMs: '30'
         });
+    });
+
+    it('headers 应逆向输出并剔除 Host 键', () => {
+        const extra = serializeXhttpExtra({
+            headers: { 'User-Agent': 'Mozilla/5.0', Host: 'x.example.com' }
+        });
+        expect(extra.headers).toEqual({ 'User-Agent': 'Mozilla/5.0' });
+    });
+
+    it('分包节奏字段的区间字符串应往返保留', () => {
+        const extra = serializeXhttpExtra({
+            'uplink-chunk-size': '2000-3000',
+            'sc-max-each-post-bytes': '4000-8000',
+            'sc-min-posts-interval-ms': '10-50'
+        });
+        expect(extra).toEqual({
+            uplinkChunkSize: '2000-3000',
+            scMaxEachPostBytes: '4000-8000',
+            scMinPostsIntervalMs: '10-50'
+        });
+    });
+
+    it('分包节奏字段的数字应截断序列化为字符串', () => {
+        const extra = serializeXhttpExtra({ 'uplink-chunk-size': 2048 });
+        expect(extra.uplinkChunkSize).toBe('2048');
     });
 
     it('download-settings 应逆向为 downloadSettings，含 tls 与 xhttpSettings', () => {
@@ -321,6 +370,20 @@ describe('parseVlessUrl 集成（URL → Clash 中间格式）', () => {
         const proxy = urlToClashProxy(url);
 
         expect(proxy['xhttp-opts']).toEqual({ path: '/test', mode: 'auto' });
+    });
+
+    it('extra.headers 的自定义头应保留且不覆盖 Host', () => {
+        const extraJson = JSON.stringify({
+            headers: { 'User-Agent': 'Mozilla/5.0', Host: 'evil.example.com' },
+            xPaddingBytes: '100-1000'
+        });
+        const url = `vless://uuid@1.2.3.4:443?type=xhttp&host=real.example.com&path=%2Ft&extra=${encodeURIComponent(extraJson)}`;
+        const proxy = urlToClashProxy(url);
+
+        expect(proxy['xhttp-opts'].headers).toEqual({
+            Host: 'real.example.com',
+            'User-Agent': 'Mozilla/5.0'
+        });
     });
 });
 

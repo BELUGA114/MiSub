@@ -86,14 +86,23 @@ export function parseXhttpExtra(extra) {
     setStr(extra, 'uplinkDataPlacement', opts, 'uplink-data-placement');
     setStr(extra, 'uplinkDataKey', opts, 'uplink-data-key');
 
-    const intField = (src, dst) => {
-        if (typeof extra[src] === 'number' && Number.isFinite(extra[src])) {
-            opts[dst] = Math.trunc(extra[src]);
+    // 这三个字段在 mihomo 配置 schema 中为 string（运行时 ParseRange 支持单值与区间），
+    // 有意偏离 mihomo URL 转换器只认数字的行为，对齐其配置层。
+    const rangeField = (src, dst) => {
+        const v = extra[src];
+        if (typeof v === 'string' && v !== '') {
+            opts[dst] = v;
+        } else if (typeof v === 'number' && Number.isFinite(v)) {
+            opts[dst] = String(Math.trunc(v));
         }
     };
-    intField('uplinkChunkSize', 'uplink-chunk-size');
-    intField('scMaxEachPostBytes', 'sc-max-each-post-bytes');
-    intField('scMinPostsIntervalMs', 'sc-min-posts-interval-ms');
+    rangeField('uplinkChunkSize', 'uplink-chunk-size');
+    rangeField('scMaxEachPostBytes', 'sc-max-each-post-bytes');
+    rangeField('scMinPostsIntervalMs', 'sc-min-posts-interval-ms');
+
+    if (isPlainObject(extra.headers) && Object.keys(extra.headers).length > 0) {
+        opts.headers = { ...extra.headers };
+    }
 
     if (isPlainObject(extra.xmux) && Object.keys(extra.xmux).length > 0) {
         const reuse = xmuxToReuseSettings(extra.xmux);
@@ -280,14 +289,25 @@ export function serializeXhttpExtra(xhttpOpts) {
     getStr('uplink-data-placement', 'uplinkDataPlacement');
     getStr('uplink-data-key', 'uplinkDataKey');
 
-    const getInt = (src, dst) => {
-        if (typeof xhttpOpts[src] === 'number' && Number.isFinite(xhttpOpts[src])) {
-            extra[dst] = Math.trunc(xhttpOpts[src]);
+    const getRange = (src, dst) => {
+        const v = xhttpOpts[src];
+        if (typeof v === 'string' && v !== '') {
+            extra[dst] = v;
+        } else if (typeof v === 'number' && Number.isFinite(v)) {
+            extra[dst] = String(Math.trunc(v));
         }
     };
-    getInt('uplink-chunk-size', 'uplinkChunkSize');
-    getInt('sc-max-each-post-bytes', 'scMaxEachPostBytes');
-    getInt('sc-min-posts-interval-ms', 'scMinPostsIntervalMs');
+    getRange('uplink-chunk-size', 'uplinkChunkSize');
+    getRange('sc-max-each-post-bytes', 'scMaxEachPostBytes');
+    getRange('sc-min-posts-interval-ms', 'scMinPostsIntervalMs');
+
+    // Host 由 host 参数表达，剔除以避免往返漂移
+    if (isPlainObject(xhttpOpts.headers) && Object.keys(xhttpOpts.headers).length > 0) {
+        const { Host, ...rest } = xhttpOpts.headers;
+        if (Object.keys(rest).length > 0) {
+            extra.headers = rest;
+        }
+    }
 
     if (isPlainObject(xhttpOpts['reuse-settings']) && Object.keys(xhttpOpts['reuse-settings']).length > 0) {
         extra.xmux = reuseSettingsToXmux(xhttpOpts['reuse-settings']);

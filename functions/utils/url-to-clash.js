@@ -150,7 +150,13 @@ function parseVlessUrl(url) {
             if (extraParam) {
                 try {
                     const extraObj = JSON.parse(extraParam);
-                    Object.assign(xhttpOpts, parseXhttpExtra(extraObj));
+                    const extraFields = parseXhttpExtra(extraObj);
+                    // extra.headers 与 URL 推断的 Host 合并，Host 优先，不整体覆盖
+                    const { headers: extraHeaders, ...restFields } = extraFields;
+                    Object.assign(xhttpOpts, restFields);
+                    if (extraHeaders) {
+                        xhttpOpts.headers = { ...extraHeaders, ...xhttpOpts.headers };
+                    }
                 } catch {
                     // 非法 JSON 静默忽略，节点按基础字段导入（对齐 mihomo 行为）
                 }
