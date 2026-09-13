@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import yaml from 'js-yaml';
 import { parseXhttpExtra, serializeXhttpExtra } from '../../functions/utils/xhttp-extra.js';
 import { urlToClashProxy } from '../../functions/utils/url-to-clash.js';
 import { convertClashProxyToUrl } from '../../functions/utils/clash-to-url.js';
+import { generateProxiesOnly } from '../../functions/modules/subscription/builtin-clash-generator.js';
 
 // 用户实例中的完整 extra（Xray camelCase）
 const FULL_EXTRA = {
@@ -397,5 +399,26 @@ describe('convertClashProxyToUrl 集成（Clash → VLESS URL）', () => {
         expect(url).toContain('mode=123');
         expect(url).not.toContain('mode=undefined');
         expect(url).not.toContain('extra=');
+    });
+});
+
+describe('端到端：vless+xhttp+extra 经 Clash 生成器输出', () => {
+    it('最终 YAML 的 xhttp-opts 应包含 extra 派生字段', () => {
+        const result = generateProxiesOnly(USER_URL);
+        const parsed = yaml.load(result);
+        const proxy = parsed.proxies[0];
+
+        expect(proxy.network).toBe('xhttp');
+        expect(proxy['xhttp-opts']['x-padding-bytes']).toBe('100-1000');
+        expect(proxy['xhttp-opts']['x-padding-obfs-mode']).toBe(true);
+        expect(proxy['xhttp-opts']['session-placement']).toBe('path');
+        expect(proxy['xhttp-opts']['reuse-settings']).toEqual({
+            'max-connections': '0',
+            'max-concurrency': '1',
+            'c-max-reuse-times': '0',
+            'h-max-request-times': '600-900',
+            'h-max-reusable-secs': '1800-3000',
+            'h-keep-alive-period': 0
+        });
     });
 });
