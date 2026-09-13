@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseXhttpExtra, serializeXhttpExtra } from '../../functions/utils/xhttp-extra.js';
 import { urlToClashProxy } from '../../functions/utils/url-to-clash.js';
+import { convertClashProxyToUrl } from '../../functions/utils/clash-to-url.js';
 
 // 用户实例中的完整 extra（Xray camelCase）
 const FULL_EXTRA = {
@@ -318,5 +319,58 @@ describe('parseVlessUrl 集成（URL → Clash 中间格式）', () => {
         const proxy = urlToClashProxy(url);
 
         expect(proxy['xhttp-opts']).toEqual({ path: '/test', mode: 'auto' });
+    });
+});
+
+describe('convertClashProxyToUrl 集成（Clash → VLESS URL）', () => {
+    const proxy = {
+        name: 'test-test',
+        type: 'vless',
+        server: 'test.example.com',
+        port: 56239,
+        uuid: '5f33ebda-7fb0-4977-bae3-1b55f3cdbed0',
+        network: 'xhttp',
+        'xhttp-opts': {
+            path: '/test',
+            mode: 'auto',
+            'x-padding-bytes': '100-1000',
+            'x-padding-obfs-mode': true,
+            'session-placement': 'path',
+            'reuse-settings': { 'max-concurrency': '1', 'h-keep-alive-period': 0 }
+        }
+    };
+
+    it('应输出 xhttp 的 path/mode 与 extra 参数', () => {
+        const url = convertClashProxyToUrl(proxy);
+
+        expect(url).toContain('type=xhttp');
+        expect(url).toContain('path=%2Ftest');
+        expect(url).toContain('mode=auto');
+
+        const extraMatch = url.match(/(?:\?|&)extra=([^&#]*)/);
+        expect(extraMatch).not.toBeNull();
+        const extra = JSON.parse(decodeURIComponent(extraMatch[1]));
+        expect(extra.xPaddingBytes).toBe('100-1000');
+        expect(extra.xPaddingObfsMode).toBe(true);
+        expect(extra.sessionIDPlacement).toBe('path');
+        expect(extra.xmux).toEqual({ maxConcurrency: '1', hKeepAlivePeriod: 0 });
+    });
+
+    it('xhttp-opts 不含 extra 字段时不输出 extra 参数', () => {
+        const url = convertClashProxyToUrl({
+            ...proxy,
+            'xhttp-opts': { path: '/test', mode: 'auto' }
+        });
+        expect(url).toContain('path=%2Ftest');
+        expect(url).not.toContain('extra=');
+    });
+
+    it('非 xhttp 节点不受影响', () => {
+        const wsUrl = convertClashProxyToUrl({
+            name: 'WS', type: 'vless', server: 'a.com', port: 443, uuid: 'u',
+            network: 'ws', 'ws-opts': { path: '/ws', headers: { Host: 'a.com' } }, tls: true
+        });
+        expect(wsUrl).toContain('type=ws');
+        expect(wsUrl).toContain('path=%2Fws');
     });
 });
