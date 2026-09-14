@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import yaml from 'js-yaml';
-import { parseXhttpExtra, serializeXhttpExtra } from '../../functions/utils/xhttp-extra.js';
+import { parseXhttpExtra, serializeXhttpExtra, parseXhttpExtraParam } from '../../functions/utils/xhttp-extra.js';
 import { urlToClashProxy } from '../../functions/utils/url-to-clash.js';
 import { convertClashProxyToUrl } from '../../functions/utils/clash-to-url.js';
 import { generateProxiesOnly } from '../../functions/modules/subscription/builtin-clash-generator.js';
@@ -384,6 +384,54 @@ describe('parseVlessUrl 集成（URL → Clash 中间格式）', () => {
             Host: 'real.example.com',
             'User-Agent': 'Mozilla/5.0'
         });
+    });
+});
+
+// 带尾逗号的 extra JSON（用户实际遇到的输入，含 CRLF 缩进）
+const USER_URL_TRAILING_COMMA = 'vless://5f33ebda-7fb0-4977-bae3-1b55f3cdbed0@test.example.com:56239?encryption=none&security=none&sni=cf.cobweb11.top&fp=chrome&type=xhttp&path=%2Fcdn&mode=auto&extra=%7B%0D%0A%20%20%22seqPlacement%22%3A%20%22path%22%2C%0D%0A%20%20%22sessionIDLength%22%3A%20%2212-20%22%2C%0D%0A%20%20%22sessionIDPlacement%22%3A%20%22path%22%2C%0D%0A%20%20%22sessionIDTable%22%3A%20%22Alphabet%22%2C%0D%0A%20%20%22sessionPlacement%22%3A%20%22path%22%2C%0D%0A%20%20%22uplinkHTTPMethod%22%3A%20%22POST%22%2C%0D%0A%20%20%22xPaddingBytes%22%3A%20%22100-1000%22%2C%0D%0A%20%20%22xPaddingHeader%22%3A%20%22Referer%22%2C%0D%0A%20%20%22xPaddingKey%22%3A%20%22x%22%2C%0D%0A%20%20%22xPaddingMethod%22%3A%20%22tokenish%22%2C%0D%0A%20%20%22xPaddingObfsMode%22%3A%20true%2C%0D%0A%20%20%22xPaddingPlacement%22%3A%20%22queryInHeader%22%2C%0D%0A%7D#test-test';
+
+describe('parseXhttpExtraParam 宽松 JSON 解析（自动纠错）', () => {
+    it('标准 JSON 直接解析', () => {
+        expect(parseXhttpExtraParam('{"xPaddingKey":"x"}')).toEqual({ xPaddingKey: 'x' });
+    });
+
+    it('对象与数组中的尾逗号应被剥离', () => {
+        const raw = '{"xPaddingKey":"x","xmux":{"maxConcurrency":"1",},"headers":{"A":"b",},}';
+        expect(parseXhttpExtraParam(raw)).toEqual({
+            xPaddingKey: 'x',
+            xmux: { maxConcurrency: '1' },
+            headers: { A: 'b' }
+        });
+    });
+
+    it('字符串值内的逗号与右括号不应被误删', () => {
+        const raw = '{"xPaddingKey":"a, }","xPaddingHeader":"x\\", 1",}';
+        expect(parseXhttpExtraParam(raw)).toEqual({
+            xPaddingKey: 'a, }',
+            xPaddingHeader: 'x", 1'
+        });
+    });
+
+    it('无法修复的 JSON 返回 null', () => {
+        expect(parseXhttpExtraParam('{not-json')).toBeNull();
+        expect(parseXhttpExtraParam('')).toBeNull();
+    });
+
+    it('合法 JSON 但非对象返回 null', () => {
+        expect(parseXhttpExtraParam('[1,2]')).toBeNull();
+        expect(parseXhttpExtraParam('"str"')).toBeNull();
+    });
+
+    it('带尾逗号的用户实例 URL 应完整解析出 extra 字段', () => {
+        const proxy = urlToClashProxy(USER_URL_TRAILING_COMMA);
+
+        expect(proxy['xhttp-opts'].path).toBe('/cdn');
+        expect(proxy['xhttp-opts']['x-padding-bytes']).toBe('100-1000');
+        expect(proxy['xhttp-opts']['x-padding-obfs-mode']).toBe(true);
+        expect(proxy['xhttp-opts']['x-padding-header']).toBe('Referer');
+        expect(proxy['xhttp-opts']['session-placement']).toBe('path');
+        expect(proxy['xhttp-opts']['session-length']).toBe('12-20');
+        expect(proxy['xhttp-opts']['seq-placement']).toBe('path');
     });
 });
 

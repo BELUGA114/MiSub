@@ -34,6 +34,71 @@ function isPlainObject(v) {
     return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+/**
+ * 剥离 JSON 文本中对象/数组的尾逗号（如 `{"a":1,}`）。
+ * 逐字符扫描并跟踪字符串与转义状态，只删除「逗号后仅有空白直到 } 或 ]」的逗号，
+ * 字符串值内部的 ", }" 等文本不受影响。
+ */
+function stripTrailingCommas(raw) {
+    const removals = [];
+    let inString = false;
+    let escaped = false;
+    let pendingComma = -1;
+
+    for (let i = 0; i < raw.length; i++) {
+        const ch = raw[i];
+        if (inString) {
+            if (escaped) escaped = false;
+            else if (ch === '\\') escaped = true;
+            else if (ch === '"') inString = false;
+            continue;
+        }
+        if (ch === '"') {
+            inString = true;
+            pendingComma = -1;
+        } else if (ch === ',') {
+            pendingComma = i;
+        } else if (ch === '}' || ch === ']') {
+            if (pendingComma !== -1) removals.push(pendingComma);
+            pendingComma = -1;
+        } else if (ch !== ' ' && ch !== '\t' && ch !== '\r' && ch !== '\n') {
+            // 逗号与闭括号之间出现其他有效字符，说明不是尾逗号
+            pendingComma = -1;
+        }
+    }
+
+    if (removals.length === 0) return raw;
+    let out = '';
+    let cursor = 0;
+    for (const idx of removals) {
+        out += raw.substring(cursor, idx);
+        cursor = idx + 1;
+    }
+    return out + raw.substring(cursor);
+}
+
+/**
+ * 宽松解析 xhttpSettings.extra 的查询参数文本。
+ * 先按标准 JSON 解析；失败时尝试剥离尾逗号后重试（真实分享链接中常见的手写尾逗号）。
+ * @param {string} raw - extra 查询参数原文
+ * @returns {Object|null} 解析后的对象；无法解析或非对象时返回 null
+ */
+export function parseXhttpExtraParam(raw) {
+    if (typeof raw !== 'string' || raw === '') return null;
+
+    let obj;
+    try {
+        obj = JSON.parse(raw);
+    } catch {
+        try {
+            obj = JSON.parse(stripTrailingCommas(raw));
+        } catch {
+            return null;
+        }
+    }
+    return isPlainObject(obj) ? obj : null;
+}
+
 function setStr(extra, src, opts, dst) {
     if (typeof extra[src] === 'string' && extra[src] !== '') {
         opts[dst] = extra[src];

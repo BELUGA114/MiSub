@@ -3,7 +3,7 @@
  */
 
 import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
-import { parseXhttpExtra } from './xhttp-extra.js';
+import { parseXhttpExtra, parseXhttpExtraParam } from './xhttp-extra.js';
 
 /**
  * 解析 URL 查询参数
@@ -146,10 +146,11 @@ function parseVlessUrl(url) {
             }
             if (params.get('mode')) xhttpOpts.mode = params.get('mode');
             // Xray extra JSON → mihomo kebab-case 字段（对齐 mihomo common/convert/v.go）
+            // 宽松解析：手写分享链接常带尾逗号，parseXhttpExtraParam 会自动纠错后再解析
             const extraParam = params.get('extra');
             if (extraParam) {
-                try {
-                    const extraObj = JSON.parse(extraParam);
+                const extraObj = parseXhttpExtraParam(extraParam);
+                if (extraObj) {
                     const extraFields = parseXhttpExtra(extraObj);
                     // extra.headers 与 URL 推断的 Host 合并，Host 优先，不整体覆盖
                     const { headers: extraHeaders, ...restFields } = extraFields;
@@ -157,8 +158,6 @@ function parseVlessUrl(url) {
                     if (extraHeaders) {
                         xhttpOpts.headers = { ...extraHeaders, ...xhttpOpts.headers };
                     }
-                } catch {
-                    // 非法 JSON 静默忽略，节点按基础字段导入（对齐 mihomo 行为）
                 }
             }
             if (Object.keys(xhttpOpts).length > 0) {
