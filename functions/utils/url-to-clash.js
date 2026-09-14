@@ -80,6 +80,32 @@ function parseHostPort(hostPort) {
 }
 
 /**
+ * Xray ech 查询参数 → mihomo ech-opts（对齐 mihomo adapter/outbound/ech.go 的 ECHOptions）。
+ * Xray 三种格式（transport/internet/tls/ech.go）：
+ *   "name+udp://dns" — DNS 查询 name 的 HTTPS ECH 记录；DNS 服务器 mihomo 用自身解析器，无法表达而丢弃
+ *   "udp://dns" — 查询名默认为 serverName，mihomo 默认行为一致，仅需 enable
+ *   纯 base64 — 直接内嵌 ECHConfigList；非 base64 的非法值静默忽略
+ * @param {string} echParam - ech 查询参数值
+ * @returns {Object|null} ech-opts；非法或无信息时为 null
+ */
+function parseEchParam(echParam) {
+    if (typeof echParam !== 'string' || echParam === '') return null;
+
+    const echOpts = { enable: true };
+    if (echParam.includes('://')) {
+        // "name+dnsserver" 或仅 "dnsserver"（后者查询名默认 serverName，无需额外字段）
+        const plusIndex = echParam.indexOf('+');
+        const name = plusIndex !== -1 ? echParam.substring(0, plusIndex) : '';
+        if (name) echOpts['query-server-name'] = name;
+    } else if (/^[A-Za-z0-9+/]+={0,2}$/.test(echParam) && echParam.length % 4 === 0) {
+        echOpts.config = echParam;
+    } else {
+        return null;
+    }
+    return echOpts;
+}
+
+/**
  * 将 VLESS URL 转换为 Clash 代理对象
  * @param {string} url - VLESS URL
  * @returns {Object|null} Clash 代理对象
@@ -209,6 +235,9 @@ function parseVlessUrl(url) {
             }
         } else if (security === 'tls') {
             proxy.tls = true;
+            // ECH 依赖 TLS，仅在 tls 分支映射（reality 与 ECH 不共存）
+            const echOpts = parseEchParam(params.get('ech'));
+            if (echOpts) proxy['ech-opts'] = echOpts;
         }
 
         // Skip cert verify (统一支持 allowInsecure 和 insecure)
@@ -290,6 +319,10 @@ function parseTrojanUrl(url) {
             port,
             password
         };
+
+        // ECH（trojan 链接默认 TLS，直接映射）
+        const trojanEchOpts = parseEchParam(params.get('ech'));
+        if (trojanEchOpts) proxy['ech-opts'] = trojanEchOpts;
 
         // 网络类型
         const network = params.get('type') || 'tcp';

@@ -118,6 +118,10 @@ export function convertClashProxyToUrl(proxy) {
             if (proxy['client-fingerprint']) params.push(`fp=${encodeURIComponent(proxy['client-fingerprint'])}`);
             if (proxy['dialer-proxy']) params.push(`dp=${encodeURIComponent(proxy['dialer-proxy'])}`);
             if (proxy.skipCertVerify || proxy['skip-cert-verify']) params.push('allowInsecure=1');
+            // ECH：仅 config 可无损还原（同 vless 分支的约束）
+            if (proxy['ech-opts']?.enable === true && typeof proxy['ech-opts'].config === 'string' && proxy['ech-opts'].config !== '') {
+                params.push(`ech=${encodeURIComponent(proxy['ech-opts'].config)}`);
+            }
             const query = params.length > 0 ? `?${params.join('&')}` : '';
             return `trojan://${encodeURIComponent(proxy.password)}@${server}:${port}${query}#${encodeURIComponent(name)}`;
         }
@@ -160,6 +164,11 @@ export function convertClashProxyToUrl(proxy) {
                 if (realityOpts['spider-x']) params.push(`spx=${encodeURIComponent(realityOpts['spider-x'])}`);
             } else if (proxy.tls) {
                 params.push('security=tls');
+            }
+            // ECH：仅 config 可无损还原为 Xray ech 参数；
+            // 仅 query-server-name 时 Xray URL 格式无法表达（会被下游当 base64 解析失败），不输出
+            if (proxy['ech-opts']?.enable === true && typeof proxy['ech-opts'].config === 'string' && proxy['ech-opts'].config !== '') {
+                params.push(`ech=${encodeURIComponent(proxy['ech-opts'].config)}`);
             }
             if (proxy.flow) params.push(`flow=${proxy.flow}`);
             const sniVal = proxy.servername !== undefined ? proxy.servername : proxy.sni;
