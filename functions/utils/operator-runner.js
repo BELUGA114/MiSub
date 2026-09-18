@@ -169,6 +169,75 @@ function opRename(nodes, params) {
 }
 
 /**
+ * 安全解码 URL 分量，解码失败时按原样返回
+ */
+function safeDecodeQueryPart(value) {
+    const text = String(value ?? '');
+    try {
+        return decodeURIComponent(text);
+    } catch {
+        return text;
+    }
+}
+
+/**
+ * 解析分享链接的 query 段为键值对（同名参数取最后一个值）
+ */
+function parseUrlQuery(url) {
+    const query = {};
+    const text = String(url || '');
+    const queryStart = text.indexOf('?');
+    if (queryStart === -1) return query;
+    const hashStart = text.indexOf('#', queryStart);
+    const rawQuery = hashStart === -1 ? text.slice(queryStart + 1) : text.slice(queryStart + 1, hashStart);
+    for (const pair of rawQuery.split('&')) {
+        if (!pair) continue;
+        const eq = pair.indexOf('=');
+        const key = safeDecodeQueryPart(eq === -1 ? pair : pair.slice(0, eq));
+        if (!key) continue;
+        query[key] = eq === -1 ? '' : safeDecodeQueryPart(pair.slice(eq + 1));
+    }
+    return query;
+}
+
+/**
+ * 将 set 中的键值覆写/追加到 URL 的 query 段；value 为 null/undefined 时删除该键。
+ * 仅重写 query，协议、主机、路径与 #fragment 原样保留。
+ */
+function applyUrlQuerySet(url, set) {
+    const text = String(url || '');
+    const entries = Object.entries(set)
+        .filter(([key, value]) => {
+            if (value === null || value === undefined || typeof value !== 'object') return true;
+            console.warn(`[Operator] set-query: ignoring non-primitive value for key "${key}".`);
+            return false;
+        })
+        .map(([key, value]) => [String(key), value === null || value === undefined ? null : String(value)]);
+    if (entries.length === 0) return text;
+
+    const hashIndex = text.indexOf('#');
+    const main = hashIndex === -1 ? text : text.slice(0, hashIndex);
+    const hash = hashIndex === -1 ? '' : text.slice(hashIndex);
+    const queryIndex = main.indexOf('?');
+    const base = queryIndex === -1 ? main : main.slice(0, queryIndex);
+    const rawQuery = queryIndex === -1 ? '' : main.slice(queryIndex + 1);
+
+    const applied = new Map(entries);
+    const kept = rawQuery === ''
+        ? []
+        : rawQuery.split('&').filter(Boolean).filter(pair => {
+            const eq = pair.indexOf('=');
+            return !applied.has(safeDecodeQueryPart(eq === -1 ? pair : pair.slice(0, eq)));
+        });
+    const additions = entries
+        .filter(([, value]) => value !== null)
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+
+    const nextQuery = [...kept, ...additions].join('&');
+    return `${base}${nextQuery ? `?${nextQuery}` : ''}${hash}`;
+}
+
+/**
  * Script Operator (The heart of Sub-Store)
  */
 async function opScript(nodes, params = {}, context) {
@@ -203,6 +272,16 @@ async function opScript(nodes, params = {}, context) {
                     url: NodeUtils.setNodeName(node.url, node.protocol, nextName),
                     metadata: node.metadata ? { ...node.metadata, cleanName: nextName } : node.metadata
                 };
+            });
+        }
+        if (action === 'set-query') {
+            const set = step.set && typeof step.set === 'object' && !Array.isArray(step.set) ? step.set : null;
+            if (!set || Object.keys(set).length === 0) continue;
+            result = result.map((node, index) => {
+                const ctx = { ...node, index: index + 1, target: context?.target || '', query: parseUrlQuery(node.url) };
+                if (step.when !== undefined && !matchesDslCondition(ctx, step.when)) return node;
+                const nextUrl = applyUrlQuerySet(node.url, set);
+                return nextUrl === node.url ? node : { ...node, url: nextUrl };
             });
         }
     }

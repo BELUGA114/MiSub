@@ -5,7 +5,7 @@ import FilterEditor from './components/FilterEditor.vue';
 import RenameEditor from './components/RenameEditor.vue';
 import SortEditor from './components/SortEditor.vue';
 import DedupEditor from './components/DedupEditor.vue';
-import Input from '../../ui/Input.vue';
+import ScriptDslEditor from './components/ScriptDslEditor.vue';
 
 const props = defineProps({
   modelValue: {
@@ -52,7 +52,7 @@ const migrateFromLegacy = () => {
     // 4. Script Rename
     const renameScript = config.rename?.script;
     if (renameScript?.enabled && renameScript.expression) {
-        ops.push({ id: crypto.randomUUID(), type: 'script', enabled: true, params: { code: `return ($nodes) => { return $nodes.map(n => { n.name = (${renameScript.expression})(n.name, n); return n; }); }` } });
+        ops.push({ id: crypto.randomUUID(), type: 'script', enabled: true, params: { url: '', dsl: [{ action: 'rename', template: renameScript.expression }] } });
     }
 
     // 5. Dedup
@@ -94,7 +94,7 @@ const getInitialParams = (type) => {
   switch (type) {
     case 'filter': return { include: { enabled: false, rules: [] }, exclude: { enabled: false, rules: [] }, protocols: { enabled: false, values: [] }, regions: { enabled: false, values: [] } };
     case 'rename': return { regex: { enabled: false, rules: [] }, template: { enabled: false, template: '' } };
-    case 'script': return { code: '', url: '' };
+    case 'script': return { url: '', dsl: [] };
     case 'sort': return { keys: [{ key: 'region', order: 'asc', customOrder: ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '法国', '加拿大'] }] };
     case 'dedup': return { mode: 'serverPort', includeProtocol: true, prefer: { protocolOrder: [] } };
     default: return {};
@@ -253,21 +253,7 @@ const updateOperatorParams = (index, params) => {
               <RenameEditor v-else-if="op.type === 'rename'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
               <SortEditor v-else-if="op.type === 'sort'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
               <DedupEditor v-else-if="op.type === 'dedup'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
-              
-              <div v-else-if="op.type === 'script'" class="space-y-4">
-                <Input 
-                  :modelValue="op.params.url"
-                  @update:modelValue="(val) => updateOperatorParams(index, { ...op.params, url: val })"
-                  :label="t('operators.scriptUrlLabel')"
-                  :placeholder="t('operators.scriptUrlPlaceholder')"
-                />
-                <textarea
-                  :value="op.params.code"
-                  @input="(e) => updateOperatorParams(index, { ...op.params, code: e.target.value })"
-                  class="w-full h-64 p-4 font-mono text-sm bg-slate-900/50 text-slate-200 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all resize-none"
-                  placeholder="function operator($proxies, $context) { ... }"
-                ></textarea>
-              </div>
+              <ScriptDslEditor v-else-if="op.type === 'script'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
 
             </div>
           </div>

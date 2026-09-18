@@ -4,7 +4,8 @@
  * templates, field comparisons and a small helper call grammar.
  */
 
-const IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+// 支持点路径（如 query.type），用于访问节点记录上的嵌套对象字段
+const PATH_RE = /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*$/;
 const STRING_RE = /^(?:'([^'\\]*(?:\\.[^'\\]*)*)'|"([^"\\]*(?:\\.[^"\\]*)*)")$/;
 const NUMBER_RE = /^-?\d+(?:\.\d+)?$/;
 
@@ -64,9 +65,14 @@ function splitArgs(input) {
 }
 
 function getField(ctx, name) {
-    if (!IDENTIFIER_RE.test(String(name || ''))) return '';
-    if (Object.prototype.hasOwnProperty.call(ctx, name)) return ctx[name];
-    return '';
+    const path = String(name || '').trim();
+    if (!PATH_RE.test(path)) return '';
+    let value = ctx;
+    for (const part of path.split('.')) {
+        if (value === null || typeof value !== 'object' || !Object.prototype.hasOwnProperty.call(value, part)) return '';
+        value = value[part];
+    }
+    return value ?? '';
 }
 
 function safeTitle(value) {
@@ -166,6 +172,8 @@ export function renderDslTemplate(template, ctx = {}) {
 }
 
 export function matchesDslCondition(record, condition = {}) {
+    // 数组条件为 AND 语义：全部满足才算匹配
+    if (Array.isArray(condition)) return condition.every(item => matchesDslCondition(record, item));
     if (typeof condition === 'string') return evaluateDslExpression(condition, record);
     if (!condition || typeof condition !== 'object') return true;
     const actual = getField(record, condition.field || 'name');

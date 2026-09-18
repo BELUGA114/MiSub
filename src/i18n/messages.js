@@ -1038,6 +1038,10 @@ export const messages = {
       preferredProtocolsHint: '当检测到重复节点时，优先保留这里勾选的协议。未设置时按默认规则处理。',
       scriptUrlLabel: '远程脚本 URL',
       scriptUrlPlaceholder: 'GitGist/Raw 链接',
+      scriptDslLabel: '处理规则 (DSL JSON)',
+      scriptDslPlaceholder: '[{ "action": "set-query", "when": [{ "field": "query.type", "op": "eq", "value": "xhttp" }], "set": { "mode": "packet-up", "alpn": "h3" } }]',
+      scriptDslInvalid: 'JSON 无效：需为动作数组',
+      scriptDslHint: '声明式动作列表（filter / rename / set-query），由服务端受限 DSL 执行，不运行任意脚本。',
       regionLabel: '{region}'
     },
     systemSettings: {
@@ -2290,6 +2294,10 @@ export const messages = {
       preferredProtocolsHint: 'When duplicate nodes are found, selected protocols are kept first. Default rules apply when none are selected.',
       scriptUrlLabel: 'Remote script URL',
       scriptUrlPlaceholder: 'GitGist/raw link',
+      scriptDslLabel: 'Processing rules (DSL JSON)',
+      scriptDslPlaceholder: '[{ "action": "set-query", "when": [{ "field": "query.type", "op": "eq", "value": "xhttp" }], "set": { "mode": "packet-up", "alpn": "h3" } }]',
+      scriptDslInvalid: 'Invalid JSON: expected an array of actions',
+      scriptDslHint: 'Declarative actions (filter / rename / set-query) executed by the restricted server-side DSL — no arbitrary scripts.',
       regionLabel: '{region}'
     },
     systemSettings: {
