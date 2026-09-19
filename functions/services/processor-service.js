@@ -189,7 +189,8 @@ export class ProcessorService {
                     managedConfigUrl,
                     skipCertVerify: builtinOptions.skipCertVerify,
                     enableUdp: builtinOptions.enableUdp,
-                    isMeta: builtinOptions.isMeta
+                    isMeta: builtinOptions.isMeta,
+                    addFlagEmoji: builtinOptions.addFlagEmoji
                 };
 
                 switch (targetFormat) {

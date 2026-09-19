@@ -170,7 +170,7 @@ export function renderSurgeFromTemplateModel(model, options = {}) {
         .filter(line => line && !line.startsWith('#'));
     const proxies = Array.isArray(normalizedModel.proxies) && normalizedModel.proxies.length > 0
         ? normalizedModel.proxies
-        : urlsToClashProxies(proxyUrls);
+        : urlsToClashProxies(proxyUrls, options);
 
     const proxyLines = proxies.map(buildProxyLine).filter(Boolean);
     const groupLines = normalizedModel.groups

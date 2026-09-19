@@ -353,7 +353,7 @@ export function renderSingboxFromTemplateModel(model, options = {}) {
         .filter(line => line && !line.startsWith('#'));
     const proxies = Array.isArray(normalizedModel.proxies) && normalizedModel.proxies.length > 0
         ? normalizedModel.proxies
-        : urlsToClashProxies(proxyUrls);
+        : urlsToClashProxies(proxyUrls, options);
     const proxyOutbounds = proxies.map(buildOutbound).filter(Boolean);
     const groupOutbounds = buildGroupOutbounds(normalizedModel.groups.filter(g => Array.isArray(g.members) && g.members.length > 0));
     const ruleSetObjects = buildRuleSets(normalizedModel.rules);

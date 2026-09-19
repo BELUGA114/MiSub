@@ -176,7 +176,7 @@ export function renderClashFromTemplateModel(model) {
                 'https://doh.pub/dns-query'
             ]
         },
-        'proxies': normalizedModel.proxies,
+        'proxies': normalizedModel.proxies.map(({ metadata, ...publicProxy }) => publicProxy),
         'proxy-groups': normalizedModel.groups
             .filter(group =>
                 (Array.isArray(group.members) && group.members.length > 0) ||

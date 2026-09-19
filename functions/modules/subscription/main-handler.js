@@ -600,7 +600,10 @@ export async function handleMisubRequest(context) {
         resolveEffectiveNodeTransform(config, currentProfile),
         urlEmoji
     );
-    const emojiVariant = `emoji${resolveKeepEmoji(config, emojiNodeTransform) ? '1' : '0'}`;
+    // 最终 emoji 决策：既用于缓存键 variant，也透传给内置渲染器（url-to-clash 会按地区反查补国旗，
+    // 若不透传则默认补齐，导致关闭 emoji 或 ?emoji=false 不生效）。
+    const shouldKeepEmoji = resolveKeepEmoji(config, emojiNodeTransform);
+    const emojiVariant = `emoji${shouldKeepEmoji ? '1' : '0'}`;
     const cacheKey = generateCacheKey(
         profileIdentifier ? 'profile' : 'token',
         profileIdentifier || token,
@@ -773,7 +776,8 @@ export async function handleMisubRequest(context) {
                     enableTfo: urlTfo === 'true' || urlTfo === '1',
                     ruleLevel,
                     regionOverrides: Array.isArray(config.regionOverrides) ? config.regionOverrides : [],
-                    isMeta: isMetaCore(userAgentHeader, url.searchParams)
+                    isMeta: isMetaCore(userAgentHeader, url.searchParams),
+                    addFlagEmoji: shouldKeepEmoji
                 };
                 const rendered = await ProcessorService.renderOutput({
                     targetFormat,
@@ -911,7 +915,8 @@ export async function handleMisubRequest(context) {
         enableTfo: finalEnableTfo,
         ruleLevel: ruleLevel, // 统一后的规则等级
         regionOverrides: Array.isArray(config.regionOverrides) ? config.regionOverrides : [],
-        isMeta: isMetaCore(userAgentHeader, url.searchParams)
+        isMeta: isMetaCore(userAgentHeader, url.searchParams),
+        addFlagEmoji: shouldKeepEmoji
     };
 
     const managedConfigUrl = buildManagedConfigUrl(request.url);

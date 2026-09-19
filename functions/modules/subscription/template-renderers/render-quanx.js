@@ -197,7 +197,7 @@ export function renderQuanxFromTemplateModel(model, options = {}) {
         .filter(line => line && !line.startsWith('#'));
     const proxies = Array.isArray(normalizedModel.proxies) && normalizedModel.proxies.length > 0
         ? normalizedModel.proxies
-        : urlsToClashProxies(proxyUrls);
+        : urlsToClashProxies(proxyUrls, options);
 
     // Extraction of remote rules for Quantumult X
     const remoteRules = normalizedModel.rules.filter(r => String(r.type).toUpperCase() === 'RULE-SET' && r.value.startsWith('http'));
