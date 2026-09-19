@@ -5,6 +5,7 @@ import { sendEnhancedTgNotification, tgEscape } from '../notifications.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS as defaultSettings, DEFAULT_SUBCONVERTER_BACKEND } from '../config.js';
 import { createDisguiseResponse } from '../disguise-page.js';
 import { generateCacheKey, setCache } from '../../services/node-cache-service.js';
+import { resolveEffectiveNodeTransform, applyUrlEmojiOverride, resolveKeepEmoji } from '../../utils/emoji-decision.js';
 import { resolveRequestContext } from './request-context.js';
 import { resolveNodeListWithCache } from './cache-manager.js';
 import { ProcessorService } from '../../services/processor-service.js';
@@ -593,9 +594,17 @@ export async function handleMisubRequest(context) {
     }
 
     // === 缓存机制：快速响应客户端请求 ===
+    // emoji 状态会烤进缓存的节点文本，必须并入缓存键，否则改设置/加 ?emoji= 无法生效。
+    // 与 generateCombinedNodeList 内部的 shouldKeepEmoji 复用同一决策逻辑（emoji-decision.js）。
+    const emojiNodeTransform = applyUrlEmojiOverride(
+        resolveEffectiveNodeTransform(config, currentProfile),
+        urlEmoji
+    );
+    const emojiVariant = `emoji${resolveKeepEmoji(config, emojiNodeTransform) ? '1' : '0'}`;
     const cacheKey = generateCacheKey(
         profileIdentifier ? 'profile' : 'token',
-        profileIdentifier || token
+        profileIdentifier || token,
+        emojiVariant
     );
 
     // 检查是否强制刷新（通过 URL 参数）
@@ -645,22 +654,8 @@ export async function handleMisubRequest(context) {
             }
         }
 
-        // nodeTransform 回退逻辑
-        const globalNodeTransform = config.defaultNodeTransform || {};
-        const globalNodeTransformPresets = Array.isArray(config.nodeTransformPresets) ? config.nodeTransformPresets : [];
-        const profileNodeTransform = activeProfile?.nodeTransform ?? null;
-        const profileNodeTransformPresetId = activeProfile?.nodeTransformPresetId || '';
-        const profilePresetNodeTransform = profileNodeTransformPresetId
-            ? (globalNodeTransformPresets.find(item => item?.id === profileNodeTransformPresetId)?.config || null)
-            : null;
-        const hasProfileNodeTransform =
-            profileNodeTransform && Object.keys(profileNodeTransform).length > 0;
-
-        // nodeTransform 使用整体覆盖逻辑
-        const effectiveNodeTransform = hasProfileNodeTransform
-            ? profileNodeTransform
-            : profilePresetNodeTransform
-            || globalNodeTransform;
+        // nodeTransform 回退逻辑（订阅组 > 预设 > 全局），与缓存键决策复用同一函数
+        const effectiveNodeTransform = resolveEffectiveNodeTransform(config, activeProfile);
 
         const generationSettings = {
             ...effectivePrefixSettings,

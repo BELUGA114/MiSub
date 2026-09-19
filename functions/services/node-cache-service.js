@@ -17,13 +17,19 @@ const CACHE_CONFIG = {
 };
 
 /**
- * 生成缓存键
- * @param {string} type - 缓存类型 ('profile' | 'token')
+ * 生成缓存键。
+ * variant 用于区分同一 profile/token 下会影响最终节点文本的请求维度（如 emoji 开关），
+ * 避免不同 emoji 状态互相命中对方的缓存。variant 为空时保持旧键格式（向后兼容）。
+ * @param {string} type - 'profile' | 'token'
  * @param {string} identifier - 标识符
+ * @param {string} [variant] - 变体后缀（仅 [A-Za-z0-9_-]，其余字符归一化）
  * @returns {string} 缓存键
  */
-export function generateCacheKey(type, identifier) {
-    return `${CACHE_CONFIG.KEY_PREFIX}${type}_${identifier}`;
+export function generateCacheKey(type, identifier, variant = '') {
+    const base = `${CACHE_CONFIG.KEY_PREFIX}${type}_${identifier}`;
+    if (!variant) return base;
+    const safeVariant = String(variant).replace(/[^A-Za-z0-9_-]/g, '_');
+    return `${base}__${safeVariant}`;
 }
 
 function isSubscriptionNodeCacheKey(key) {

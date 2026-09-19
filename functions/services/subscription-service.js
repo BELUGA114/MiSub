@@ -11,6 +11,7 @@ import { prependNodeName, addFlagEmoji, removeFlagEmoji, fixNodeUrlEncoding, san
 import { runOperatorChain } from '../utils/operator-runner.js';
 import { createTimeoutFetch } from '../modules/utils.js';
 import { assertPublicNetworkUrl } from '../modules/security-utils.js';
+import { resolveKeepEmoji } from '../utils/emoji-decision.js';
 
 /**
  * 订阅获取配置常量
@@ -311,27 +312,10 @@ const shouldPrependManualNodes = profilePrefixSettings?.enableManualNodes ?? tru
 // 判断是否在节点名称前添加分组名称
 const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
 
-    // [修复] 多级 Emoji 开关控制逻辑
+    // Emoji 开关：与缓存键、main-handler 复用同一决策逻辑（见 emoji-decision.js）。
+    // profilePrefixSettings.nodeTransform 已由 main-handler 叠加了 URL 的 emoji 覆盖。
     const nodeTransformConfig = profilePrefixSettings?.nodeTransform;
-    const templateEnabled = nodeTransformConfig?.enabled && nodeTransformConfig?.rename?.template?.enabled;
-    const defaultTemplate = '{emoji}{region}-{protocol}-{index}';
-    const effectiveTemplate = nodeTransformConfig?.rename?.template?.template || defaultTemplate;
-    const templateContainsEmoji = templateEnabled && effectiveTemplate.includes('{emoji}');
-
-    // 确定最终是否保留/添加 Emoji
-    // 优先级：nodeTransform.addFlagEmoji (来自 URL 或组件设置) > config.enableFlagEmoji (全局设置)
-    const emojiEnabledByConfig = config.enableFlagEmoji !== false;
-    const emojiExplicitlyDisabled = nodeTransformConfig?.addFlagEmoji === false;
-    const emojiExplicitlyEnabled = nodeTransformConfig?.addFlagEmoji === true;
-
-    let shouldKeepEmoji = emojiEnabledByConfig;
-    if (emojiExplicitlyDisabled) shouldKeepEmoji = false;
-    if (emojiExplicitlyEnabled) shouldKeepEmoji = true;
-
-    // 强制约束：如果启用了模板命名且模板不含 {emoji}，则必须移除
-    if (templateEnabled && !templateContainsEmoji) {
-        shouldKeepEmoji = false;
-    }
+    const shouldKeepEmoji = resolveKeepEmoji(config, nodeTransformConfig);
 
     // 手动节点前缀文本
     const manualNodePrefix = profilePrefixSettings?.manualNodePrefix ?? '\u624b\u52a8\u8282\u70b9';
