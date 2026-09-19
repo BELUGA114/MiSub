@@ -164,7 +164,9 @@ function parseVlessUrl(url) {
         if (network === 'xhttp') {
             const xhttpOpts = {};
             const path = params.get('xhttp-path') || params.get('path');
-            const host = params.get('xhttp-host') || params.get('host') || params.get('sni');
+            // host 仅取 xhttp-host/host，对齐 mihomo common/convert/v.go：不回退 sni。
+            // 否则无 host 的节点会把 SNI 误当作 HTTP Host 写入 xhttp-opts.host 与 headers.Host。
+            const host = params.get('xhttp-host') || params.get('host');
             if (path) xhttpOpts.path = path;
             if (host) {
                 xhttpOpts.host = host;
@@ -246,12 +248,12 @@ function parseVlessUrl(url) {
         }
 
 // SNI (支持 sni 和 peer 两种参数名，Shadowrocket 使用 peer)
+      // VLESS 的 TLS 服务器名在 mihomo 中仅为 servername（见 adapter/outbound/vless.go），
+      // 不再同时写 sni，避免 clash 配置出现多余且非标准的 sni 键。
       if (params.get('sni')) {
         proxy.servername = params.get('sni');
-        proxy.sni = params.get('sni');
       } else if (params.get('peer')) {
         proxy.servername = params.get('peer');
-        proxy.sni = params.get('peer');
       }
 
         // Fingerprint

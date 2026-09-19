@@ -205,7 +205,8 @@ export async function handleProfileMode(request, env, profileId, userAgent, appl
                 subName: profile?.name,
                 userAgent,
                 config: settings,
-                nodeMetadataByUrl
+                nodeMetadataByUrl,
+                enableEmoji: settings.enableFlagEmoji !== false
             });
         } else if (effectiveNodeTransform?.enabled) {
             const defaultTemplate = '{emoji}{region}-{protocol}-{index}';

@@ -358,7 +358,8 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
             currentNodes = await runOperatorChain(currentNodes, subOperators, {
                 subName: subSource?.name,
                 userAgent,
-                config
+                config,
+                enableEmoji: shouldKeepEmoji
             });
         }
 
@@ -568,7 +569,8 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
         currentLines = await runOperatorChain(currentLines, activeOperators, {
             subName: profilePrefixSettings?.name,
             userAgent,
-            config
+            config,
+            enableEmoji: shouldKeepEmoji
         });
     }
 

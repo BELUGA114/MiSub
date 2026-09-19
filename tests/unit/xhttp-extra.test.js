@@ -385,6 +385,26 @@ describe('parseVlessUrl 集成（URL → Clash 中间格式）', () => {
             'User-Agent': 'Mozilla/5.0'
         });
     });
+
+    // 用户实测：tls + sni + xhttp、且无 host 参数的节点
+    const USER_URL_TLS_SNI_NO_HOST =
+        'vless://4b2dfc25-15e4-4dc6-a17c-4ed0b09260f8@cf.danfeng.eu.org:443?encryption=none&security=tls&sni=cf.example.top&fp=chrome&alpn=h2&type=xhttp&path=%2Fcdn&mode=stream-one';
+
+    it('无 host 参数时不得把 SNI 当作 xhttp host / headers.Host（对齐 mihomo v.go）', () => {
+        const proxy = urlToClashProxy(USER_URL_TLS_SNI_NO_HOST);
+
+        expect(proxy['xhttp-opts'].path).toBe('/cdn');
+        expect(proxy['xhttp-opts'].mode).toBe('stream-one');
+        expect(proxy['xhttp-opts'].host).toBeUndefined();
+        expect(proxy['xhttp-opts'].headers).toBeUndefined();
+    });
+
+    it('VLESS 仅输出 servername，不再输出非标准的 sni 键（对齐 mihomo vless.go）', () => {
+        const proxy = urlToClashProxy(USER_URL_TLS_SNI_NO_HOST);
+
+        expect(proxy.servername).toBe('cf.example.top');
+        expect(proxy.sni).toBeUndefined();
+    });
 });
 
 // 带尾逗号的 extra JSON（用户实际遇到的输入，含 CRLF 缩进）

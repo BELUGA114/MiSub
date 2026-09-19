@@ -235,4 +235,35 @@ describe('operator runner', () => {
     ]);
   });
 
+  it('renders template {emoji} according to context.enableEmoji', async () => {
+    const urls = [
+      `ss://YWVzLTEyOC1nY206cGFzcw@example.com:8388#${encodeURIComponent('香港节点')}`
+    ];
+    const params = {
+      template: { enabled: true, template: '{emoji}{regionZh}', indexScope: 'global' }
+    };
+
+    const withEmoji = await runOperatorChain(urls, [{ type: 'rename', params }], { enableEmoji: true });
+    expect(decodeURIComponent(withEmoji[0])).toContain('#🇭🇰香港');
+
+    const noEmoji = await runOperatorChain(urls, [{ type: 'rename', params }], { enableEmoji: false });
+    expect(decodeURIComponent(noEmoji[0])).toContain('#香港');
+    expect(decodeURIComponent(noEmoji[0])).not.toContain('🇭🇰');
+  });
+
+  it('falls back to 🌍 for unknown region only when emoji is enabled', async () => {
+    const urls = [
+      `ss://YWVzLTEyOC1nY206cGFzcw@example.com:8388#${encodeURIComponent('MyNode')}`
+    ];
+    const params = {
+      template: { enabled: true, template: '{emoji}{name}', indexScope: 'global' }
+    };
+
+    const withEmoji = await runOperatorChain(urls, [{ type: 'rename', params }], { enableEmoji: true });
+    expect(decodeURIComponent(withEmoji[0])).toContain('🌍');
+
+    const noEmoji = await runOperatorChain(urls, [{ type: 'rename', params }], { enableEmoji: false });
+    expect(decodeURIComponent(noEmoji[0])).not.toContain('🌍');
+  });
+
 });

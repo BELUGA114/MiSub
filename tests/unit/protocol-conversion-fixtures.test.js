@@ -160,7 +160,6 @@ describe('protocol conversion fixtures', () => {
                     network: 'grpc',
                     tls: true,
                     servername: 'www.example.com',
-                    sni: 'www.example.com',
                     flow: 'xtls-rprx-vision',
                     'client-fingerprint': 'chrome',
                     'dialer-proxy': '前置节点',

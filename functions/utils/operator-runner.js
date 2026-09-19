@@ -84,7 +84,7 @@ function opFilter(nodes, params) {
 /**
  * Rename Operator
  */
-function opRename(nodes, params) {
+function opRename(nodes, params, enableEmoji = true) {
     if (!params) return nodes;
     const { regex, template } = params;
     let result = [...nodes];
@@ -93,7 +93,7 @@ function opRename(nodes, params) {
         const rules = normalizeRules(regex.rules);
         if (rules.length > 0) {
             result = result.map(r => {
-                const enriched = NodeUtils.ensureRegionInfo(r, true);
+                const enriched = NodeUtils.ensureRegionInfo(r, enableEmoji);
                 const vars = {
                     name: r.name,
                     protocol: r.protocol,
@@ -130,8 +130,8 @@ function opRename(nodes, params) {
         const scope = template.indexScope || template.scope || 'region'; // 默认按地区分组计数，符合用户直觉
 
         result = result.map((r, index) => {
-            const enriched = NodeUtils.ensureRegionInfo(r, true);
-            
+            const enriched = NodeUtils.ensureRegionInfo(r, enableEmoji);
+
             // 确定索引分组键
             let groupKey = 'global';
             if (scope === 'region') groupKey = `r:${enriched.regionZh || 'Other'}`;
@@ -325,6 +325,9 @@ export async function runOperatorChain(nodeUrls, operators, context = {}) {
     };
 
     const enrichedContext = { ...context, ...platform };
+    // 模板 {emoji} 是否落地由调用方的 emoji 开关决定（全局设置/订阅组覆盖/URL 参数），
+    // 未显式传入时保持旧行为（启用）。
+    const enableEmoji = context.enableEmoji !== false;
 
     // 2. Run Operators sequentially
     for (const op of operators) {
@@ -336,7 +339,7 @@ export async function runOperatorChain(nodeUrls, operators, context = {}) {
                 records = opFilter(records, params);
                 break;
             case 'rename':
-                records = opRename(records, params);
+                records = opRename(records, params, enableEmoji);
                 break;
             case 'script':
                 records = await opScript(records, params, enrichedContext);
