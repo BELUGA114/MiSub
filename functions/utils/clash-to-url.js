@@ -129,7 +129,11 @@ export function convertClashProxyToUrl(proxy) {
         if (type === 'vless') {
             const uuid = proxy.uuid || proxy.UUID;
             if (!uuid) return null;
-            const params = ['encryption=none'];
+            // VLESS Encryption：保留 mihomo encryption 字段（抗量子加密），缺省或 none 时回落为 none
+            const vlessEncryption = (typeof proxy.encryption === 'string' && proxy.encryption !== '')
+                ? proxy.encryption
+                : 'none';
+            const params = [`encryption=${encodeURIComponent(vlessEncryption)}`];
             if (proxy.network) params.push(`type=${proxy.network}`);
             const wsOpts = proxy.wsOpts || proxy['ws-opts'];
             if (wsOpts) {

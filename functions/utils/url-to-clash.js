@@ -266,6 +266,15 @@ function parseVlessUrl(url) {
             proxy.flow = params.get('flow');
         }
 
+        // VLESS Encryption（Xray 抗量子加密，对齐 mihomo adapter/outbound/vless.go 的 encryption 字段）
+        // 值形如 mlkem768x25519plus.<native|xorpub|random>.<1rtt|0rtt>.<paddings...>.<base64url 公钥...>，全部为 URL 安全字符。
+        // mihomo 的分享链接解析器 common/convert/v.go 目前不读取 encryption，故在此透传补齐；
+        // "none"/空按未加密处理并省略，与 mihomo NewClient 对 "" 与 "none" 的等价语义一致，避免污染 YAML。
+        const encryption = params.get('encryption');
+        if (encryption && encryption !== 'none') {
+            proxy.encryption = encryption;
+        }
+
         // ALPN
         if (params.get('alpn')) {
             proxy.alpn = params.get('alpn').split(',');
