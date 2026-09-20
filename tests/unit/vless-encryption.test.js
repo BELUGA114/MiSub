@@ -8,8 +8,10 @@ import { convertClashProxyToUrl } from '../../functions/utils/clash-to-url.js';
 // mihomo 自身的分享链接解析器 common/convert/v.go 不读取 encryption，本项目在转换层补齐。
 
 const UUID = '5f33ebda-7fb0-4977-bae3-1b55f3cdbed0';
-// 88 字符 base64url（X25519PasswordSize=32B → 43 字符；此处用一段合法的抗量子密钥占位）
-const KEY = 'mlkem768x25519plus.native.1rtt.100-1000.hRq8fZ0eN1c2Xt7uYpLmKwVbGjDsFhAaBbCcDdEeFf';
+// 抗量子加密串：mlkem768x25519plus.<mode>.<rtt>.<padding 三元组>.<base64url 公钥>。
+// padding 段用合法的“概率-下界-上界”三元组 100-111-1111（对齐 xray/mihomo ParsePadding 的解析规则，
+// 与内核 CreatPadding 的默认值一致）；末段为 43 字符 base64url，对应 X25519PasswordSize=32B。
+const KEY = 'mlkem768x25519plus.native.1rtt.100-111-1111.hRq8fZ0eN1c2Xt7uYpLmKwVbGjDsFhAaBbCcDdEeFfG';
 
 describe('VLESS Encryption 映射（URL ↔ Clash）', () => {
     const base = `vless://${UUID}@test.example.com:443?security=tls&sni=cf.example.com&type=tcp`;
