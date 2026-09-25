@@ -271,7 +271,9 @@ async function opScript(nodes, params = {}, context) {
             const template = step.template || step.expression;
             if (!template) continue;
             result = result.map((node, index) => {
-                const nextName = renderDslTemplate(template, { ...node, index: index + 1, target: context?.target || '' }) || node.name;
+                const ctx = { ...node, index: index + 1, target: context?.target || '' };
+                if (step.when !== undefined && !matchesDslCondition(ctx, step.when)) return node;
+                const nextName = renderDslTemplate(template, ctx) || node.name;
                 if (nextName === node.name) return node;
                 return {
                     ...node,
@@ -280,6 +282,7 @@ async function opScript(nodes, params = {}, context) {
                     metadata: node.metadata ? { ...node.metadata, cleanName: nextName } : node.metadata
                 };
             });
+            continue;
         }
         if (action === 'set-query') {
             const set = step.set && typeof step.set === 'object' && !Array.isArray(step.set) ? step.set : null;

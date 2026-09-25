@@ -290,3 +290,23 @@ describe('opScript filter/discard 条件增强', () => {
     expect(out.join('|')).not.toContain('%E8%BF%87%E6%9C%9F');
   });
 });
+
+describe('opScript rename 条件化', () => {
+  const urls = [
+    'trojan://p@hk1.example.com:443#HK-01',
+    'trojan://p@jp1.example.com:443#JP-01'
+  ];
+  it('只给命中数组的节点加后缀，其余原样', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{
+        action: 'rename',
+        when: { field: 'name', op: 'regex', value: ['HK', '香港'] },
+        template: '{name} [专线]'
+      }] }
+    }], { target: 'clash' });
+    const names = out.map(u => decodeURIComponent(u.slice(u.lastIndexOf('#') + 1)));
+    expect(names).toContain('HK-01 [专线]');
+    expect(names).toContain('JP-01');
+  });
+});
