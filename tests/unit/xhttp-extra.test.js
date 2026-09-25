@@ -324,6 +324,22 @@ describe('serializeXhttpExtra 反向序列化', () => {
         expect(extra.downloadSettings.realitySettings).toEqual({ publicKey: 'pbk', shortId: 'sid' });
     });
 
+    it('reality-opts 仅含空 public-key（继承补偿注入）时应视为普通 TLS，security 保持 tls', () => {
+        const extra = serializeXhttpExtra({
+            'download-settings': {
+                server: 'dl.example.com',
+                port: 443,
+                tls: true,
+                servername: 'dl.example.com',
+                alpn: ['h3'],
+                'reality-opts': { 'public-key': '' }
+            }
+        });
+
+        expect(extra.downloadSettings.security).toBe('tls');
+        expect(extra.downloadSettings.realitySettings).toBeUndefined();
+    });
+
     it('空对象或不含 extra 字段时返回 null', () => {
         expect(serializeXhttpExtra({})).toBeNull();
         expect(serializeXhttpExtra({ path: '/x', host: 'h', mode: 'auto' })).toBeNull();
@@ -452,6 +468,84 @@ describe('parseXhttpExtraParam 宽松 JSON 解析（自动纠错）', () => {
         expect(proxy['xhttp-opts']['session-placement']).toBe('path');
         expect(proxy['xhttp-opts']['session-length']).toBe('12-20');
         expect(proxy['xhttp-opts']['seq-placement']).toBe('path');
+    });
+});
+
+// 上行 REALITY + 下行普通 TLS 回源：mihomo download-settings 无自身 reality-opts 会继承上行 REALITY
+const UPSTREAM_REALITY_DOWNLOAD_TLS = (() => {
+    const extra = {
+        downloadSettings: {
+            address: 'cf2.example.com',
+            port: 443,
+            security: 'tls',
+            tlsSettings: { serverName: 'cflite.example.com', fingerprint: 'chrome', alpn: ['h3'] },
+            xhttpSettings: { path: '/xhttp' }
+        }
+    };
+    return 'vless://54b2956c-e1b9-4bd1-9114-51aded1a370d@[2602:fa4f:802:a8c9::1]:443'
+        + '?encryption=none&security=reality&pbk=KS0e4oSFrocou586Jh5m-Nx8BB5gIcxAN4fMqwyxPxk&sid=b484028b'
+        + '&sni=us3.example.me&fp=chrome&type=xhttp&path=%2Fxhttp&mode=packet-up'
+        + '&extra=' + encodeURIComponent(JSON.stringify(extra)) + '#node';
+})();
+
+describe('urlToClashProxy 下行 REALITY 继承补偿', () => {
+    it('上行 REALITY + 下行普通 TLS 时应给 download-settings 注入空 public-key', () => {
+        const proxy = urlToClashProxy(UPSTREAM_REALITY_DOWNLOAD_TLS);
+        const ds = proxy['xhttp-opts']['download-settings'];
+
+        expect(proxy['reality-opts']['public-key']).toBe('KS0e4oSFrocou586Jh5m-Nx8BB5gIcxAN4fMqwyxPxk');
+        expect(ds['reality-opts']).toEqual({ 'public-key': '' });
+        // 下行 tls/host/path 等原字段不受影响
+        expect(ds.tls).toBe(true);
+        expect(ds.servername).toBe('cflite.example.com');
+        expect(ds.path).toBe('/xhttp');
+    });
+
+    it('往返：注入的空 public-key 反向序列化仍为 security=tls，不误判为 reality', () => {
+        const proxy = urlToClashProxy(UPSTREAM_REALITY_DOWNLOAD_TLS);
+        const url = convertClashProxyToUrl(proxy);
+        const extraMatch = url.match(/(?:\?|&)extra=([^&#]*)/);
+        const extra = JSON.parse(decodeURIComponent(extraMatch[1]));
+
+        expect(extra.downloadSettings.security).toBe('tls');
+        expect(extra.downloadSettings.realitySettings).toBeUndefined();
+    });
+
+    it('下行自身为 REALITY 时不覆盖其真实 public-key', () => {
+        const extra = {
+            downloadSettings: {
+                address: 'dl.example.com',
+                port: 443,
+                security: 'reality',
+                realitySettings: { publicKey: 'downloadPbk', shortId: 'ff' },
+                xhttpSettings: { path: '/dl' }
+            }
+        };
+        const url = 'vless://uuid@1.2.3.4:443?encryption=none&security=reality&pbk=upPbk&sid=aa'
+            + '&type=xhttp&path=%2Fup&mode=packet-up&extra=' + encodeURIComponent(JSON.stringify(extra)) + '#n';
+        const proxy = urlToClashProxy(url);
+        const ds = proxy['xhttp-opts']['download-settings'];
+
+        expect(ds['reality-opts']).toEqual({ 'public-key': 'downloadPbk', 'short-id': 'ff' });
+    });
+
+    it('上行非 REALITY（普通 TLS）时不注入 reality-opts', () => {
+        const extra = { downloadSettings: { address: 'dl.example.com', port: 443, security: 'tls', xhttpSettings: { path: '/dl' } } };
+        const url = 'vless://uuid@1.2.3.4:443?encryption=none&security=tls&sni=a.example.com'
+            + '&type=xhttp&path=%2Fup&mode=packet-up&extra=' + encodeURIComponent(JSON.stringify(extra)) + '#n';
+        const proxy = urlToClashProxy(url);
+        const ds = proxy['xhttp-opts']['download-settings'];
+
+        expect(proxy['reality-opts']).toBeUndefined();
+        expect(ds['reality-opts']).toBeUndefined();
+    });
+
+    it('上行 REALITY 但无 download-settings 时不做任何注入', () => {
+        const url = 'vless://uuid@1.2.3.4:443?encryption=none&security=reality&pbk=upPbk&sid=aa'
+            + '&type=xhttp&path=%2Fup&mode=stream-one#n';
+        const proxy = urlToClashProxy(url);
+
+        expect(proxy['xhttp-opts']['download-settings']).toBeUndefined();
     });
 });
 

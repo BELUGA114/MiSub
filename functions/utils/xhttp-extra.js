@@ -279,8 +279,14 @@ function serializeDownloadSettings(ds) {
     if (typeof ds.server === 'string' && ds.server !== '') out.address = ds.server;
     if (typeof ds.port === 'number' && Number.isFinite(ds.port)) out.port = Math.trunc(ds.port);
 
+    // reality-opts 需 public-key/short-id 非空才视为 REALITY。
+    // url-to-clash 会给「上行 REALITY + 下行普通 TLS」的节点注入 { public-key: '' }
+    // 以关闭 mihomo 的下行 REALITY 继承；此处空值不得被当作 REALITY，
+    // 否则会把源头的 security=tls 误逆向成 security=reality，破坏 URL 往返一致性。
+    const dsPbk = ds['reality-opts'] && ds['reality-opts']['public-key'];
+    const dsSid = ds['reality-opts'] && ds['reality-opts']['short-id'];
     const hasReality = isPlainObject(ds['reality-opts'])
-        && (typeof ds['reality-opts']['public-key'] === 'string' || typeof ds['reality-opts']['short-id'] === 'string');
+        && ((typeof dsPbk === 'string' && dsPbk !== '') || (typeof dsSid === 'string' && dsSid !== ''));
     if (ds.tls === true || hasReality) {
         out.security = hasReality ? 'reality' : 'tls';
         const tlsSettings = {};

@@ -285,6 +285,19 @@ function parseVlessUrl(url) {
             proxy['dialer-proxy'] = params.get('dp');
         }
 
+        // xhttp download-settings 的 REALITY 继承补偿：
+        // mihomo 中 download-settings 若无自身 reality-opts，会继承上行的 REALITY 配置
+        // （adapter/outbound/vless.go:760）。当上行为 REALITY、下行为普通 TLS 回源时，
+        // 继承会导致下行拨号失败（H3 不支持 REALITY / 用上行公钥握手 CDN 认证失败）。
+        // 由于本链路输入恒为 Xray 分享链接，其 downloadSettings 是独立 StreamConfig，
+        // 从不继承上行 security，故「下行无 reality-opts」即「下行非 REALITY」。
+        // 显式写入空 public-key，令 mihomo 关闭下行 REALITY 继承（reality.go 空 key → nil）。
+        const dlSettings = proxy['xhttp-opts'] && proxy['xhttp-opts']['download-settings'];
+        const upstreamPbk = proxy['reality-opts'] && proxy['reality-opts']['public-key'];
+        if (dlSettings && typeof upstreamPbk === 'string' && upstreamPbk !== '' && !dlSettings['reality-opts']) {
+            dlSettings['reality-opts'] = { 'public-key': '' };
+        }
+
         return proxy;
     } catch (e) {
         console.error('解析 VLESS URL 失败:', e);
