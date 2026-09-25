@@ -310,3 +310,21 @@ describe('opScript rename 条件化', () => {
     expect(names).toContain('JP-01');
   });
 });
+
+describe('opScript set-field（name/metadata）', () => {
+  const urls = ['trojan://p@hk1.example.com:443#HK-01'];
+  it('按模板改名', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'set-field', set: { name: '[HK] {name}' } }] }
+    }], { target: 'clash' });
+    expect(decodeURIComponent(out[0].slice(out[0].lastIndexOf('#') + 1))).toBe('[HK] HK-01');
+  });
+  it('when 未命中则原样透传', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'set-field', when: { field: 'name', op: 'contains', value: 'JP' }, set: { name: 'X' } }] }
+    }], { target: 'clash' });
+    expect(decodeURIComponent(out[0].slice(out[0].lastIndexOf('#') + 1))).toBe('HK-01');
+  });
+});

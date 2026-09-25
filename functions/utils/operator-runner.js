@@ -238,6 +238,44 @@ function applyUrlQuerySet(url, set) {
 }
 
 /**
+ * set-field 的字段值：含 {} 的按模板渲染，否则当字面量。
+ */
+function renderFieldValue(rawValue, ctx) {
+    if (typeof rawValue !== 'string') return rawValue;
+    return rawValue.includes('{') ? renderDslTemplate(rawValue, ctx) : rawValue;
+}
+
+/**
+ * 按 set 改写节点的结构字段。一期支持 name 与 metadata.*；server/port 见二期。
+ */
+function applySetField(node, set, ctx) {
+    let next = { ...node };
+    let changed = false;
+    for (const [rawKey, rawValue] of Object.entries(set)) {
+        const key = String(rawKey);
+        const value = renderFieldValue(rawValue, ctx);
+        if (key === 'name') {
+            const name = String(value ?? '').trim();
+            if (!name || name === next.name) continue;
+            next = {
+                ...next,
+                name,
+                url: NodeUtils.setNodeName(next.url, next.protocol, name),
+                metadata: next.metadata ? { ...next.metadata, cleanName: name } : next.metadata
+            };
+            changed = true;
+        } else if (key.startsWith('metadata.')) {
+            const metaKey = key.slice(9);
+            if (!metaKey) continue;
+            next = { ...next, metadata: { ...(next.metadata || {}), [metaKey]: value } };
+            changed = true;
+        }
+        // 其它字段（含二期的 server/port）在此忽略
+    }
+    return changed ? next : node;
+}
+
+/**
  * Script Operator (The heart of Sub-Store)
  */
 async function opScript(nodes, params = {}, context) {
@@ -293,6 +331,17 @@ async function opScript(nodes, params = {}, context) {
                 const nextUrl = applyUrlQuerySet(node.url, set);
                 return nextUrl === node.url ? node : { ...node, url: nextUrl };
             });
+            continue;
+        }
+        if (action === 'set-field') {
+            const set = step.set && typeof step.set === 'object' && !Array.isArray(step.set) ? step.set : null;
+            if (!set || Object.keys(set).length === 0) continue;
+            result = result.map((node, index) => {
+                const ctx = { ...node, index: index + 1, target: context?.target || '' };
+                if (step.when !== undefined && !matchesDslCondition(ctx, step.when)) return node;
+                return applySetField(node, set, ctx);
+            });
+            continue;
         }
     }
 
