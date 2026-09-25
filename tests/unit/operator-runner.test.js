@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runOperatorChain } from '../../functions/utils/operator-runner.js';
+import { parseNodeInfo } from '../../functions/modules/utils/geo-utils.js';
 
 describe('operator runner', () => {
   it('runs script operators through the restricted DSL without dynamic code execution', async () => {
@@ -266,4 +267,129 @@ describe('operator runner', () => {
     expect(decodeURIComponent(noEmoji[0])).not.toContain('🌍');
   });
 
+});
+
+describe('opScript filter/discard 条件增强', () => {
+  const urls = [
+    'trojan://p@hk1.example.com:443#HK-01',
+    'trojan://p@jp1.example.com:443#JP-01',
+    'trojan://p@sg1.example.com:443#SG-过期'
+  ];
+  it('filter 用 when + 数组只保留香港/日本', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'filter', when: { field: 'name', op: 'regex', value: ['HK', 'JP'] } }] }
+    }], { target: 'clash' });
+    expect(out).toHaveLength(2);
+  });
+  it('discard 丢弃名字含"过期"的节点', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'discard', when: { field: 'name', op: 'contains', value: '过期' } }] }
+    }], { target: 'clash' });
+    expect(out).toHaveLength(2);
+    expect(out.join('|')).not.toContain('%E8%BF%87%E6%9C%9F');
+  });
+});
+
+describe('opScript rename 条件化', () => {
+  const urls = [
+    'trojan://p@hk1.example.com:443#HK-01',
+    'trojan://p@jp1.example.com:443#JP-01'
+  ];
+  it('只给命中数组的节点加后缀，其余原样', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{
+        action: 'rename',
+        when: { field: 'name', op: 'regex', value: ['HK', '香港'] },
+        template: '{name} [专线]'
+      }] }
+    }], { target: 'clash' });
+    const names = out.map(u => decodeURIComponent(u.slice(u.lastIndexOf('#') + 1)));
+    expect(names).toContain('HK-01 [专线]');
+    expect(names).toContain('JP-01');
+  });
+});
+
+describe('opScript set-field（name/metadata）', () => {
+  const urls = ['trojan://p@hk1.example.com:443#HK-01'];
+  it('按模板改名', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'set-field', set: { name: '[HK] {name}' } }] }
+    }], { target: 'clash' });
+    expect(decodeURIComponent(out[0].slice(out[0].lastIndexOf('#') + 1))).toBe('[HK] HK-01');
+  });
+  it('when 未命中则原样透传', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'set-field', when: { field: 'name', op: 'contains', value: 'JP' }, set: { name: 'X' } }] }
+    }], { target: 'clash' });
+    expect(decodeURIComponent(out[0].slice(out[0].lastIndexOf('#') + 1))).toBe('HK-01');
+  });
+});
+
+describe('opScript 审查跟进用例', () => {
+  it('set-field 写 metadata.* 后可被后续 rename 读到', async () => {
+    const out = await runOperatorChain(['trojan://p@hk1.example.com:443#HK-01'], [{
+      type: 'script',
+      params: { dsl: [
+        { action: 'set-field', set: { 'metadata.group': 'AAA' } },
+        { action: 'rename', template: '{metadata.group}-{name}' }
+      ] }
+    }], { target: 'clash' });
+    expect(decodeURIComponent(out[0].slice(out[0].lastIndexOf('#') + 1))).toBe('AAA-HK-01');
+  });
+  it('discard 支持内联条件（无 when，与 filter 对称）', async () => {
+    const urls = ['trojan://p@hk1.example.com:443#HK-01', 'trojan://p@sg1.example.com:443#SG-过期'];
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'discard', field: 'name', op: 'contains', value: '过期' }] }
+    }], { target: 'clash' });
+    expect(out).toHaveLength(1);
+    expect(decodeURIComponent(out[0])).toContain('#HK-01');
+  });
+  it('无任何条件的 discard 跳过、不清空', async () => {
+    const urls = ['trojan://p@hk1.example.com:443#HK-01', 'trojan://p@jp1.example.com:443#JP-01'];
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'discard' }] }
+    }], { target: 'clash' });
+    expect(out).toHaveLength(2);
+  });
+});
+
+describe('opScript set-field（server/port）', () => {
+  const urls = ['trojan://p@old.example.com:443?sni=a.com#HK-01'];
+  it('改写 server 与 port，query/#备注 原样', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'set-field', set: { server: 'new.example.com', port: 8443 } }] }
+    }], { target: 'clash' });
+    expect(out[0]).toContain('new.example.com:8443');
+    expect(out[0]).toContain('sni=a.com');
+    expect(out[0]).toContain('#HK-01');
+  });
+  it('非法 port 被跳过（端口保持原值）', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'set-field', set: { port: 70000 } }] }
+    }], { target: 'clash' });
+    expect(out[0]).toContain('old.example.com:443');
+  });
+});
+
+describe('opScript set-field 同时改 name 与 server/port（vmess 组合）', () => {
+  const vmess = 'vmess://eyJ2IjoiMiIsInBzIjoi8J+HuvCfh7ggVVMgTm9kZSAwMSIsImFkZCI6InVzMS5leGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImFpZCI6MCwibmV0IjoidGNwIiwidHlwZSI6Im5vbmUiLCJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6InRscyJ9';
+  it('name 与 port 同时生效，其余字段保留', async () => {
+    const out = await runOperatorChain([vmess], [{
+      type: 'script',
+      params: { dsl: [{ action: 'set-field', set: { name: 'US-X', port: 9999 } }] }
+    }], { target: 'clash' });
+    const info = parseNodeInfo(out[0]);
+    expect(info.name).toBe('US-X');
+    expect(String(info.port)).toBe('9999');
+    expect(info.server).toBe('us1.example.com');
+  });
 });

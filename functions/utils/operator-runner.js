@@ -238,6 +238,72 @@ function applyUrlQuerySet(url, set) {
 }
 
 /**
+ * 把新名字写回节点：同步 URL 的 #备注 与 metadata.cleanName。名字为空或未变则原样返回。
+ */
+function applyRename(node, newName) {
+    if (!newName || newName === node.name) return node;
+    return {
+        ...node,
+        name: newName,
+        url: NodeUtils.setNodeName(node.url, node.protocol, newName),
+        metadata: node.metadata ? { ...node.metadata, cleanName: newName } : node.metadata
+    };
+}
+
+/**
+ * set-field 的字段值：含 {} 的按模板渲染，否则当字面量。
+ */
+function renderFieldValue(rawValue, ctx) {
+    if (typeof rawValue !== 'string') return rawValue;
+    return rawValue.includes('{') ? renderDslTemplate(rawValue, ctx) : rawValue;
+}
+
+/**
+ * 按 set 改写节点的结构字段：name、metadata.*、server/port（server/port 经 setNodeHostPort 重建 URL，端口校验 1-65535）。
+ */
+function applySetField(node, set, ctx) {
+    let next = { ...node };
+    let changed = false;
+    let nextServer = null;
+    let nextPort = null;
+    for (const [rawKey, rawValue] of Object.entries(set)) {
+        const key = String(rawKey);
+        const value = renderFieldValue(rawValue, ctx);
+        if (key === 'name') {
+            const name = String(value ?? '').trim();
+            if (!name || name === next.name) continue;
+            next = applyRename(next, name);
+            changed = true;
+        } else if (key.startsWith('metadata.')) {
+            const metaKey = key.slice(9);
+            if (!metaKey) continue;
+            next = { ...next, metadata: { ...(next.metadata || {}), [metaKey]: value } };
+            changed = true;
+        } else if (key === 'server') {
+            const server = String(value ?? '').trim();
+            if (server) nextServer = server;
+        } else if (key === 'port') {
+            const portNum = Number(value);
+            if (Number.isInteger(portNum) && portNum >= 1 && portNum <= 65535) nextPort = String(portNum);
+            else console.warn(`[Operator] set-field: invalid port "${value}", skipped.`);
+        }
+    }
+    if (nextServer !== null || nextPort !== null) {
+        const nextUrl = NodeUtils.setNodeHostPort(next.url, next.protocol, { server: nextServer, port: nextPort });
+        if (nextUrl !== next.url) {
+            next = {
+                ...next,
+                url: nextUrl,
+                server: nextServer !== null ? nextServer : next.server,
+                port: nextPort !== null ? nextPort : next.port
+            };
+            changed = true;
+        }
+    }
+    return changed ? next : node;
+}
+
+/**
  * Script Operator (The heart of Sub-Store)
  */
 async function opScript(nodes, params = {}, context) {
@@ -257,22 +323,29 @@ async function opScript(nodes, params = {}, context) {
     for (const step of dsl) {
         const action = String(step?.action || '').toLowerCase();
         if (action === 'filter') {
-            result = result.filter((node, index) => matchesDslCondition({ ...node, index: index + 1 }, step));
+            const cond = step.when !== undefined ? step.when : step;
+            result = result.filter((node, index) => matchesDslCondition({ ...node, index: index + 1 }, cond));
+            continue;
+        }
+        if (action === 'discard') {
+            // discard 支持 when 或内联 {field,op,value}（与 filter 对称）；完全无条件时会清空全部，故跳过
+            const hasCondition = step.when !== undefined
+                || step.field !== undefined || step.op !== undefined || step.value !== undefined;
+            if (!hasCondition) continue;
+            const cond = step.when !== undefined ? step.when : step;
+            result = result.filter((node, index) => !matchesDslCondition({ ...node, index: index + 1 }, cond));
             continue;
         }
         if (action === 'rename') {
             const template = step.template || step.expression;
             if (!template) continue;
             result = result.map((node, index) => {
-                const nextName = renderDslTemplate(template, { ...node, index: index + 1, target: context?.target || '' }) || node.name;
-                if (nextName === node.name) return node;
-                return {
-                    ...node,
-                    name: nextName,
-                    url: NodeUtils.setNodeName(node.url, node.protocol, nextName),
-                    metadata: node.metadata ? { ...node.metadata, cleanName: nextName } : node.metadata
-                };
+                const ctx = { ...node, index: index + 1, target: context?.target || '' };
+                if (step.when !== undefined && !matchesDslCondition(ctx, step.when)) return node;
+                const nextName = renderDslTemplate(template, ctx) || node.name;
+                return applyRename(node, nextName);
             });
+            continue;
         }
         if (action === 'set-query') {
             const set = step.set && typeof step.set === 'object' && !Array.isArray(step.set) ? step.set : null;
@@ -283,6 +356,17 @@ async function opScript(nodes, params = {}, context) {
                 const nextUrl = applyUrlQuerySet(node.url, set);
                 return nextUrl === node.url ? node : { ...node, url: nextUrl };
             });
+            continue;
+        }
+        if (action === 'set-field') {
+            const set = step.set && typeof step.set === 'object' && !Array.isArray(step.set) ? step.set : null;
+            if (!set || Object.keys(set).length === 0) continue;
+            result = result.map((node, index) => {
+                const ctx = { ...node, index: index + 1, target: context?.target || '' };
+                if (step.when !== undefined && !matchesDslCondition(ctx, step.when)) return node;
+                return applySetField(node, set, ctx);
+            });
+            continue;
         }
     }
 

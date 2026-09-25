@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyNodeTransformPipeline } from '../../functions/utils/node-transformer.js';
+import { applyNodeTransformPipeline, setNodeHostPort } from '../../functions/utils/node-transformer.js';
+import { parseNodeInfo } from '../../functions/modules/utils/geo-utils.js';
 
 describe('applyNodeTransformPipeline filters', () => {
     const nodes = [
@@ -82,4 +83,45 @@ describe('applyNodeTransformPipeline filters', () => {
         expect(result.some(line => line.includes('%E6%B5%81%E9%87%8F%E5%89%A9%E4%BD%99'))).toBe(false);
         expect(result.some(line => line.includes('%E5%A5%97%E9%A4%90%E5%88%B0%E6%9C%9F'))).toBe(false);
     });
+});
+
+describe('setNodeHostPort 分协议 round-trip', () => {
+  const hp = (url) => { const i = parseNodeInfo(url); return { server: i.server, port: String(i.port) }; };
+  it('trojan 改 server/port，query 与 #备注 原样', () => {
+    const out = setNodeHostPort('trojan://pass@hk1.example.com:443?sni=a.com#HK-01', 'trojan', { server: 'new.host', port: 8443 });
+    expect(hp(out)).toEqual({ server: 'new.host', port: '8443' });
+    expect(out).toContain('sni=a.com');
+    expect(out).toContain('#HK-01');
+  });
+  it('vmess 改 add/port', () => {
+    const url = 'vmess://eyJ2IjoiMiIsInBzIjoi8J+HuvCfh7ggVVMgTm9kZSAwMSIsImFkZCI6InVzMS5leGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImFpZCI6MCwibmV0IjoidGNwIiwidHlwZSI6Im5vbmUiLCJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6InRscyJ9';
+    expect(hp(setNodeHostPort(url, 'vmess', { server: 'new.host', port: 9443 }))).toEqual({ server: 'new.host', port: '9443' });
+  });
+  it('ss 旧式 base64(method:pass@host:port)', () => {
+    const out = setNodeHostPort('ss://YWVzLTI1Ni1nY206cGFzc0AxMjcuMC4wLjE6ODM4OA==#node', 'ss', { server: '10.0.0.1', port: 9000 });
+    expect(hp(out)).toEqual({ server: '10.0.0.1', port: '9000' });
+    expect(out).toContain('#node');
+  });
+  it('只改 port 时 server 不变', () => {
+    expect(hp(setNodeHostPort('trojan://p@hk.example.com:443#x', 'trojan', { port: 8080 }))).toEqual({ server: 'hk.example.com', port: '8080' });
+  });
+  it('ssr 等无法安全重建时保留原 URL', () => {
+    expect(setNodeHostPort('ssr://abc', 'ssr', { port: 1 })).toBe('ssr://abc');
+  });
+});
+
+describe('setNodeHostPort 补充场景', () => {
+  it('SS SIP002（base64 userinfo + @）改 server/port', () => {
+    const out = setNodeHostPort('ss://YWVzLTI1Ni1nY206cGFzcw==@1.2.3.4:8388#x', 'ss', { server: '5.6.7.8', port: 9999 });
+    expect(out).toBe('ss://YWVzLTI1Ni1nY206cGFzcw==@5.6.7.8:9999#x');
+  });
+  it('IPv6 仅改端口，主机原样', () => {
+    expect(setNodeHostPort('trojan://p@[2001:db8::1]:443#x', 'trojan', { port: 8443 })).toBe('trojan://p@[2001:db8::1]:8443#x');
+  });
+  it('新 server 为 IPv6 字面量时自动补方括号', () => {
+    expect(setNodeHostPort('trojan://p@old.com:443#x', 'trojan', { server: '::2' })).toBe('trojan://p@[::2]:443#x');
+  });
+  it('仅改 server，端口原样', () => {
+    expect(setNodeHostPort('trojan://p@old.com:443?sni=a#x', 'trojan', { server: 'new.com' })).toBe('trojan://p@new.com:443?sni=a#x');
+  });
 });
