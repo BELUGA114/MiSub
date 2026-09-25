@@ -96,6 +96,17 @@ function safeReplace(value, pattern, replacement = '', flags = 'g') {
     }
 }
 
+function safeExtract(value, pattern, groupIndex) {
+    try {
+        const m = String(value || '').match(new RegExp(String(pattern || '')));
+        if (!m) return '';
+        const n = Number.isFinite(Number(groupIndex)) ? Number(groupIndex) : 1;
+        return m[n] ?? '';
+    } catch {
+        return '';
+    }
+}
+
 function fallback(...values) {
     for (const value of values) {
         if (value !== null && value !== undefined && String(value).trim() !== '') return value;
@@ -120,7 +131,7 @@ function evalValue(expr, ctx) {
     if (call) {
         const [, fn, rawArgs] = call;
         const args = splitArgs(rawArgs).map(arg => evalValue(arg, ctx));
-        switch (fn) {
+        switch (String(fn).toLowerCase()) {
             case 'upper': return String(args[0] || '').toUpperCase();
             case 'lower': return String(args[0] || '').toLowerCase();
             case 'title': return safeTitle(args[0]);
@@ -130,6 +141,10 @@ function evalValue(expr, ctx) {
             case 'match': return safeMatch(args[0], args[1], args[2] || 'i');
             case 'fallback': return fallback(...args);
             case 'pick': return pick(Boolean(args[0]), args[1], args[2] ?? '');
+            case 'slice': return String(args[0] || '').slice(Number(args[1]) || 0, args[2] === undefined ? undefined : Number(args[2]));
+            case 'padstart': return String(args[0] ?? '').padStart(Number(args[1]) || 0, args[2] === undefined ? ' ' : String(args[2]));
+            case 'concat': return args.map(a => String(a ?? '')).join('');
+            case 'extract': return safeExtract(args[0], args[1], args[2]);
             default: return '';
         }
     }
