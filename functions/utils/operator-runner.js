@@ -257,7 +257,14 @@ async function opScript(nodes, params = {}, context) {
     for (const step of dsl) {
         const action = String(step?.action || '').toLowerCase();
         if (action === 'filter') {
-            result = result.filter((node, index) => matchesDslCondition({ ...node, index: index + 1 }, step));
+            const cond = step.when !== undefined ? step.when : step;
+            result = result.filter((node, index) => matchesDslCondition({ ...node, index: index + 1 }, cond));
+            continue;
+        }
+        if (action === 'discard') {
+            // 无 when 的 discard 会清空全部，视为无意义，直接跳过
+            if (step.when === undefined) continue;
+            result = result.filter((node, index) => !matchesDslCondition({ ...node, index: index + 1 }, step.when));
             continue;
         }
         if (action === 'rename') {

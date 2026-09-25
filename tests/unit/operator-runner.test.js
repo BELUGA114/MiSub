@@ -267,3 +267,26 @@ describe('operator runner', () => {
   });
 
 });
+
+describe('opScript filter/discard 条件增强', () => {
+  const urls = [
+    'trojan://p@hk1.example.com:443#HK-01',
+    'trojan://p@jp1.example.com:443#JP-01',
+    'trojan://p@sg1.example.com:443#SG-过期'
+  ];
+  it('filter 用 when + 数组只保留香港/日本', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'filter', when: { field: 'name', op: 'regex', value: ['HK', 'JP'] } }] }
+    }], { target: 'clash' });
+    expect(out).toHaveLength(2);
+  });
+  it('discard 丢弃名字含"过期"的节点', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'discard', when: { field: 'name', op: 'contains', value: '过期' } }] }
+    }], { target: 'clash' });
+    expect(out).toHaveLength(2);
+    expect(out.join('|')).not.toContain('%E8%BF%87%E6%9C%9F');
+  });
+});
