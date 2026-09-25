@@ -328,3 +328,33 @@ describe('opScript set-field（name/metadata）', () => {
     expect(decodeURIComponent(out[0].slice(out[0].lastIndexOf('#') + 1))).toBe('HK-01');
   });
 });
+
+describe('opScript 审查跟进用例', () => {
+  it('set-field 写 metadata.* 后可被后续 rename 读到', async () => {
+    const out = await runOperatorChain(['trojan://p@hk1.example.com:443#HK-01'], [{
+      type: 'script',
+      params: { dsl: [
+        { action: 'set-field', set: { 'metadata.group': 'AAA' } },
+        { action: 'rename', template: '{metadata.group}-{name}' }
+      ] }
+    }], { target: 'clash' });
+    expect(decodeURIComponent(out[0].slice(out[0].lastIndexOf('#') + 1))).toBe('AAA-HK-01');
+  });
+  it('discard 支持内联条件（无 when，与 filter 对称）', async () => {
+    const urls = ['trojan://p@hk1.example.com:443#HK-01', 'trojan://p@sg1.example.com:443#SG-过期'];
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'discard', field: 'name', op: 'contains', value: '过期' }] }
+    }], { target: 'clash' });
+    expect(out).toHaveLength(1);
+    expect(decodeURIComponent(out[0])).toContain('#HK-01');
+  });
+  it('无任何条件的 discard 跳过、不清空', async () => {
+    const urls = ['trojan://p@hk1.example.com:443#HK-01', 'trojan://p@jp1.example.com:443#JP-01'];
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'discard' }] }
+    }], { target: 'clash' });
+    expect(out).toHaveLength(2);
+  });
+});

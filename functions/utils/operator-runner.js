@@ -238,6 +238,19 @@ function applyUrlQuerySet(url, set) {
 }
 
 /**
+ * 把新名字写回节点：同步 URL 的 #备注 与 metadata.cleanName。名字为空或未变则原样返回。
+ */
+function applyRename(node, newName) {
+    if (!newName || newName === node.name) return node;
+    return {
+        ...node,
+        name: newName,
+        url: NodeUtils.setNodeName(node.url, node.protocol, newName),
+        metadata: node.metadata ? { ...node.metadata, cleanName: newName } : node.metadata
+    };
+}
+
+/**
  * set-field 的字段值：含 {} 的按模板渲染，否则当字面量。
  */
 function renderFieldValue(rawValue, ctx) {
@@ -257,12 +270,7 @@ function applySetField(node, set, ctx) {
         if (key === 'name') {
             const name = String(value ?? '').trim();
             if (!name || name === next.name) continue;
-            next = {
-                ...next,
-                name,
-                url: NodeUtils.setNodeName(next.url, next.protocol, name),
-                metadata: next.metadata ? { ...next.metadata, cleanName: name } : next.metadata
-            };
+            next = applyRename(next, name);
             changed = true;
         } else if (key.startsWith('metadata.')) {
             const metaKey = key.slice(9);
@@ -300,9 +308,12 @@ async function opScript(nodes, params = {}, context) {
             continue;
         }
         if (action === 'discard') {
-            // 无 when 的 discard 会清空全部，视为无意义，直接跳过
-            if (step.when === undefined) continue;
-            result = result.filter((node, index) => !matchesDslCondition({ ...node, index: index + 1 }, step.when));
+            // discard 支持 when 或内联 {field,op,value}（与 filter 对称）；完全无条件时会清空全部，故跳过
+            const hasCondition = step.when !== undefined
+                || step.field !== undefined || step.op !== undefined || step.value !== undefined;
+            if (!hasCondition) continue;
+            const cond = step.when !== undefined ? step.when : step;
+            result = result.filter((node, index) => !matchesDslCondition({ ...node, index: index + 1 }, cond));
             continue;
         }
         if (action === 'rename') {
@@ -312,13 +323,7 @@ async function opScript(nodes, params = {}, context) {
                 const ctx = { ...node, index: index + 1, target: context?.target || '' };
                 if (step.when !== undefined && !matchesDslCondition(ctx, step.when)) return node;
                 const nextName = renderDslTemplate(template, ctx) || node.name;
-                if (nextName === node.name) return node;
-                return {
-                    ...node,
-                    name: nextName,
-                    url: NodeUtils.setNodeName(node.url, node.protocol, nextName),
-                    metadata: node.metadata ? { ...node.metadata, cleanName: nextName } : node.metadata
-                };
+                return applyRename(node, nextName);
             });
             continue;
         }
