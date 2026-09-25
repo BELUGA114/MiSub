@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchesDslCondition, renderDslTemplate } from '../../functions/utils/expression-dsl.js';
+import { matchesDslCondition, renderDslTemplate, evaluateDslExpression } from '../../functions/utils/expression-dsl.js';
 
 describe('matchesDslCondition 数组 value = OR', () => {
   it('regex + 数组命中任意一个', () => {
@@ -44,5 +44,29 @@ describe('健壮性与更多数组语义', () => {
   it('ne + 数组为全部不等', () => {
     expect(matchesDslCondition({ protocol: 'trojan' }, { field: 'protocol', op: 'ne', value: ['vless', 'vmess'] })).toBe(true);
     expect(matchesDslCondition({ protocol: 'vless' }, { field: 'protocol', op: 'ne', value: ['vless', 'vmess'] })).toBe(false);
+  });
+});
+
+describe('表达式解析器：分组/取反/算术', () => {
+  const ctx = { name: '香港01', port: '443', protocol: 'vless' };
+  it('括号改变优先级', () => {
+    expect(evaluateDslExpression("(protocol === 'vless' || protocol === 'vmess') && contains(name, '香港')", ctx)).toBe(true);
+  });
+  it('&& 优先级高于 ||', () => {
+    expect(evaluateDslExpression("protocol === 'vless' || protocol === 'x' && contains(name, '日本')", ctx)).toBe(true);
+  });
+  it('! 取反', () => {
+    expect(evaluateDslExpression("!contains(name, '日本')", ctx)).toBe(true);
+  });
+  it('数字比较与算术', () => {
+    expect(evaluateDslExpression('port > 400', ctx)).toBe(true);
+    expect(renderDslTemplate('{1 + 2 * 3}', {})).toBe('7');
+  });
+  it('字符串 + 拼接', () => {
+    expect(renderDslTemplate("{regionZh + '-' + name}", { regionZh: '香港', name: '01' })).toBe('香港-01');
+  });
+  it('保留既有语义', () => {
+    expect(evaluateDslExpression("name === '香港01'", ctx)).toBe(true);
+    expect(evaluateDslExpression('', ctx)).toBe(true);
   });
 });
