@@ -24,6 +24,8 @@
 ]
 ```
 
+上例这条链依次做四件事：① 只保留 `vless` / `hysteria2` 协议的节点；② 丢弃名字含“过期”“剩余”的节点；③ 把名字匹配“香港/HK”的改名为 国旗+地区中文+序号（如 `🇭🇰 香港-1`）；④ 再把其中的 `vless` 节点端口统一改成 `8443`。
+
 - 空数组 `[]` 或空文本 = 不做任何处理。
 - 非数组（例如直接写一个对象）会被编辑器判为"JSON 无效：需为动作数组"。
 - 未知的 `action` 会被安全忽略。
@@ -95,6 +97,8 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
 { "action": "filter", "when": { "field": "name", "op": "regex", "value": ["香港", "台湾", "日本"] } }
 ```
 
+上例：只保留名字里含“香港”“台湾”“日本”任一关键字的节点，其余全部丢弃。
+
 - "且（AND）"：写多个 `filter` 步逐步收窄，或在 `when` 里用条件数组 / `&&` 表达式。
 - "或（OR）"：`value` 用数组（见第 4 节），或用 `|` 正则、`||` 表达式。
 
@@ -106,7 +110,9 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
 { "action": "discard", "when": { "field": "name", "op": "contains", "value": ["过期", "官网", "剩余流量"] } }
 ```
 
-> 安全约束：**完全没有条件**的 `discard`（既无 `when` 也无 `field/op/value`）会被跳过，不会清空全部节点。
+上例：丢弃名字里含“过期”“官网”“剩余流量”任一关键字的节点（不区分大小写），其余保留。
+
+> 安全约束：**完全没有条件**的 `discard`（既无 `when` 也无 `field/op/value`）会被跳过，不会清空全部节点。若确实要清空全部，写一个**恒真条件**（如 `"when": "true"`，见第 4 节）——护栏只拦“无条件”，不拦“恒真”。
 
 ### 3.3 `rename` — 套模板改名
 
@@ -115,6 +121,8 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
 ```json
 { "action": "rename", "when": { "field": "name", "op": "regex", "value": ["香港", "HK"] }, "template": "{emoji}{regionZh}-{index}" }
 ```
+
+上例：把名字匹配“香港/HK”的节点，改名为 国旗+地区中文+序号（如 `🇭🇰香港-1`）。
 
 - `template` 与 `expression` 同义；都缺省则该步跳过。
 - 无 `when` 时对全部节点改名；也可把判断写进模板函数，例如 `"{pick(match(name,'IPLC'), '专线-', '')}{name}"`。
@@ -132,6 +140,8 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
 }
 ```
 
+上例：把 URL 参数 `type=xhttp` 的节点，`mode` 改成 `packet-up`、`alpn` 设为 `h3`，并删除 `fp` 参数（值为 `null` 即删除）。
+
 - `when` 省略则对全部节点生效；这里可以用 `query.` 字段。
 - `set` 里键已存在则覆盖、不存在则追加；值为 `null` 则删除该参数；值必须是基本类型（字符串/数字/布尔），对象/数组会被忽略并告警。
 
@@ -146,6 +156,8 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
   "set": { "server": "new.example.com", "port": 8443, "name": "{regionZh}-{index}", "metadata.group": "A" }
 }
 ```
+
+上例：把 `server` 以 `.old.com` 结尾的节点，主机改成 `new.example.com`、端口改成 `8443`、按 地区中文+序号 改名，并打上 `metadata.group=A` 标记。
 
 - `set` 的值当作 **模板字符串**（含 `{}` 时按模板渲染，见第 5 节）或字面量。
 - `name` → 改名并同步 URL 的 `#备注` 与 `metadata.cleanName`。
@@ -164,6 +176,8 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
 ```json
 { "field": "server", "op": "regex", "value": "^cf[0-9]?\\.example\\.com$", "flags": "i" }
 ```
+
+上例：匹配 `server` 形如 `cf.example.com`、`cf1.example.com`（`cf` 后可跟一位数字）的节点；`flags: "i"` 表示忽略大小写。
 
 运算符 `op`：
 
@@ -193,6 +207,8 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
 ]
 ```
 
+上例：两条同时成立才命中——`server` 以 `.example.com` 结尾，且 URL 参数 `type` 等于 `xhttp`。
+
 ### 4.3 字符串表达式形式
 
 直接写一行布尔表达式（见第 5 节语法）：
@@ -200,6 +216,10 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
 ```json
 "when": "(protocol === 'vless' || protocol === 'vmess') && contains(name, '香港')"
 ```
+
+上例：匹配协议为 `vless` 或 `vmess`、且名字含“香港”的节点。
+
+> **恒真条件（无差别匹配全部）**：`filter` / `discard` 的条件与任意 `when`，想命中所有节点就写一个恒真条件——`"true"`、空表达式 `""`、或缺省 `op`（默认 `contains` 空串，“包含空串”对任何值都成立）都恒为真。由此：`filter` 恒真 = 保留全部（等于不筛选）；`discard` 恒真 = 清空全部（需显式写，见 3.2）。变更类动作（`rename` / `set-query` / `set-field`）要作用于全部节点则直接省略 `when`（见第 3 节开头），无需写条件。
 
 ## 5. 表达式与模板
 
@@ -218,6 +238,8 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
 ```json
 "when": "port >= 443 && !contains(name, '测试')"
 ```
+
+上例：匹配端口 ≥ 443、且名字不含“测试”的节点。
 
 > 运算符两侧不再强制空格（`a===1&&b===2` 与 `a === 1 && b === 2` 等价）。
 >
@@ -254,6 +276,8 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
 ]
 ```
 
+上例：节点集合先缩到 `vless`/`hysteria2` → 去掉名字含“过期”“剩余”的 → 剩下的全部改名为 国旗+地区中文+序号（如 `🇭🇰香港-1`、`🇯🇵日本-2`）。
+
 **名字命中数组关键字才加后缀（原名 + 后缀）：**
 
 ```json
@@ -261,6 +285,8 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
   { "action": "rename", "when": { "field": "name", "op": "regex", "value": ["香港", "HK", "🇭🇰"] }, "template": "{name} [专线]" }
 ]
 ```
+
+上例：名字含“香港”“HK”“🇭🇰”任一的节点变成 `原名 [专线]`，其余节点原样不动。
 
 **给某机场的 xhttp 节点切换 mode 并加 alpn：**
 
@@ -277,6 +303,8 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
 ]
 ```
 
+上例：只有 `server` 以 `.example.com` 结尾且 `type=xhttp` 的节点，被设成 `mode=packet-up`、`alpn=h3`；其余节点不动。
+
 **统一改端口、按序号补零改名：**
 
 ```json
@@ -284,6 +312,8 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
   { "action": "set-field", "when": "protocol === 'vless'", "set": { "port": 8443, "name": "{regionZh}-{padstart(index, 2, '0')}" } }
 ]
 ```
+
+上例：把所有 `vless` 节点端口改成 `8443`，并改名为 地区中文+两位序号——`padstart(index, 2, '0')` 会把序号补足两位（如 `香港-01`、`日本-02`）。
 
 ---
 
