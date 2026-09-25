@@ -30,3 +30,19 @@ describe('新增表达式函数', () => {
     expect(renderDslTemplate('{concat(regionZh, "-", name)}', { regionZh: '香港', name: '01' })).toBe('香港-01');
   });
 });
+
+describe('健壮性与更多数组语义', () => {
+  it('padstart 超长参数被钳制且不抛错', () => {
+    const r = renderDslTemplate('{padstart(name, 999999999, "0")}', { name: 'x' });
+    expect(r.length).toBe(1024);
+    expect(r.endsWith('x')).toBe(true);
+  });
+  it('eq + 数组为 OR', () => {
+    expect(matchesDslCondition({ protocol: 'vless' }, { field: 'protocol', op: 'eq', value: ['vless', 'vmess'] })).toBe(true);
+    expect(matchesDslCondition({ protocol: 'trojan' }, { field: 'protocol', op: 'eq', value: ['vless', 'vmess'] })).toBe(false);
+  });
+  it('ne + 数组为全部不等', () => {
+    expect(matchesDslCondition({ protocol: 'trojan' }, { field: 'protocol', op: 'ne', value: ['vless', 'vmess'] })).toBe(true);
+    expect(matchesDslCondition({ protocol: 'vless' }, { field: 'protocol', op: 'ne', value: ['vless', 'vmess'] })).toBe(false);
+  });
+});

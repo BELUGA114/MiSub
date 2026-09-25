@@ -142,7 +142,7 @@ function evalValue(expr, ctx) {
             case 'fallback': return fallback(...args);
             case 'pick': return pick(Boolean(args[0]), args[1], args[2] ?? '');
             case 'slice': return String(args[0] || '').slice(Number(args[1]) || 0, args[2] === undefined ? undefined : Number(args[2]));
-            case 'padstart': return String(args[0] ?? '').padStart(Number(args[1]) || 0, args[2] === undefined ? ' ' : String(args[2]));
+            case 'padstart': return String(args[0] ?? '').padStart(Math.min(Number(args[1]) || 0, 1024), args[2] === undefined ? ' ' : String(args[2]));
             case 'concat': return args.map(a => String(a ?? '')).join('');
             case 'extract': return safeExtract(args[0], args[1], args[2]);
             default: return '';
