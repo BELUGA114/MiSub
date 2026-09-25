@@ -109,3 +109,19 @@ describe('setNodeHostPort 分协议 round-trip', () => {
     expect(setNodeHostPort('ssr://abc', 'ssr', { port: 1 })).toBe('ssr://abc');
   });
 });
+
+describe('setNodeHostPort 补充场景', () => {
+  it('SS SIP002（base64 userinfo + @）改 server/port', () => {
+    const out = setNodeHostPort('ss://YWVzLTI1Ni1nY206cGFzcw==@1.2.3.4:8388#x', 'ss', { server: '5.6.7.8', port: 9999 });
+    expect(out).toBe('ss://YWVzLTI1Ni1nY206cGFzcw==@5.6.7.8:9999#x');
+  });
+  it('IPv6 仅改端口，主机原样', () => {
+    expect(setNodeHostPort('trojan://p@[2001:db8::1]:443#x', 'trojan', { port: 8443 })).toBe('trojan://p@[2001:db8::1]:8443#x');
+  });
+  it('新 server 为 IPv6 字面量时自动补方括号', () => {
+    expect(setNodeHostPort('trojan://p@old.com:443#x', 'trojan', { server: '::2' })).toBe('trojan://p@[::2]:443#x');
+  });
+  it('仅改 server，端口原样', () => {
+    expect(setNodeHostPort('trojan://p@old.com:443?sni=a#x', 'trojan', { server: 'new.com' })).toBe('trojan://p@new.com:443?sni=a#x');
+  });
+});

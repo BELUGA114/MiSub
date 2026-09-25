@@ -360,7 +360,6 @@ function replaceHostPort(authority, nextServer, nextPort) {
     if (nextPort !== null) port = nextPort;
     return `${userinfo}${host}${port !== '' ? ':' + port : ''}`;
 }
-// SET_NODE_HOST_PORT_PLACEHOLDER
 
 function setAuthorityHostPort(text, nextServer, nextPort) {
     const parts = splitUrlParts(text);

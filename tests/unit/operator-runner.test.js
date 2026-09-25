@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runOperatorChain } from '../../functions/utils/operator-runner.js';
+import { parseNodeInfo } from '../../functions/modules/utils/geo-utils.js';
 
 describe('operator runner', () => {
   it('runs script operators through the restricted DSL without dynamic code execution', async () => {
@@ -376,5 +377,19 @@ describe('opScript set-field（server/port）', () => {
       params: { dsl: [{ action: 'set-field', set: { port: 70000 } }] }
     }], { target: 'clash' });
     expect(out[0]).toContain('old.example.com:443');
+  });
+});
+
+describe('opScript set-field 同时改 name 与 server/port（vmess 组合）', () => {
+  const vmess = 'vmess://eyJ2IjoiMiIsInBzIjoi8J+HuvCfh7ggVVMgTm9kZSAwMSIsImFkZCI6InVzMS5leGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImFpZCI6MCwibmV0IjoidGNwIiwidHlwZSI6Im5vbmUiLCJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6InRscyJ9';
+  it('name 与 port 同时生效，其余字段保留', async () => {
+    const out = await runOperatorChain([vmess], [{
+      type: 'script',
+      params: { dsl: [{ action: 'set-field', set: { name: 'US-X', port: 9999 } }] }
+    }], { target: 'clash' });
+    const info = parseNodeInfo(out[0]);
+    expect(info.name).toBe('US-X');
+    expect(String(info.port)).toBe('9999');
+    expect(info.server).toBe('us1.example.com');
   });
 });
