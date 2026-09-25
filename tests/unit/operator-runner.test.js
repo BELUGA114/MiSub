@@ -358,3 +358,23 @@ describe('opScript 审查跟进用例', () => {
     expect(out).toHaveLength(2);
   });
 });
+
+describe('opScript set-field（server/port）', () => {
+  const urls = ['trojan://p@old.example.com:443?sni=a.com#HK-01'];
+  it('改写 server 与 port，query/#备注 原样', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'set-field', set: { server: 'new.example.com', port: 8443 } }] }
+    }], { target: 'clash' });
+    expect(out[0]).toContain('new.example.com:8443');
+    expect(out[0]).toContain('sni=a.com');
+    expect(out[0]).toContain('#HK-01');
+  });
+  it('非法 port 被跳过（端口保持原值）', async () => {
+    const out = await runOperatorChain(urls, [{
+      type: 'script',
+      params: { dsl: [{ action: 'set-field', set: { port: 70000 } }] }
+    }], { target: 'clash' });
+    expect(out[0]).toContain('old.example.com:443');
+  });
+});

@@ -259,11 +259,13 @@ function renderFieldValue(rawValue, ctx) {
 }
 
 /**
- * 按 set 改写节点的结构字段。一期支持 name 与 metadata.*；server/port 见二期。
+ * 按 set 改写节点的结构字段：name、metadata.*、server/port（server/port 经 setNodeHostPort 重建 URL，端口校验 1-65535）。
  */
 function applySetField(node, set, ctx) {
     let next = { ...node };
     let changed = false;
+    let nextServer = null;
+    let nextPort = null;
     for (const [rawKey, rawValue] of Object.entries(set)) {
         const key = String(rawKey);
         const value = renderFieldValue(rawValue, ctx);
@@ -277,8 +279,26 @@ function applySetField(node, set, ctx) {
             if (!metaKey) continue;
             next = { ...next, metadata: { ...(next.metadata || {}), [metaKey]: value } };
             changed = true;
+        } else if (key === 'server') {
+            const server = String(value ?? '').trim();
+            if (server) nextServer = server;
+        } else if (key === 'port') {
+            const portNum = Number(value);
+            if (Number.isInteger(portNum) && portNum >= 1 && portNum <= 65535) nextPort = String(portNum);
+            else console.warn(`[Operator] set-field: invalid port "${value}", skipped.`);
         }
-        // 其它字段（含二期的 server/port）在此忽略
+    }
+    if (nextServer !== null || nextPort !== null) {
+        const nextUrl = NodeUtils.setNodeHostPort(next.url, next.protocol, { server: nextServer, port: nextPort });
+        if (nextUrl !== next.url) {
+            next = {
+                ...next,
+                url: nextUrl,
+                server: nextServer !== null ? nextServer : next.server,
+                port: nextPort !== null ? nextPort : next.port
+            };
+            changed = true;
+        }
     }
     return changed ? next : node;
 }
