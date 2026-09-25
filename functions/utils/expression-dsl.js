@@ -171,14 +171,7 @@ export function renderDslTemplate(template, ctx = {}) {
     }).trim();
 }
 
-export function matchesDslCondition(record, condition = {}) {
-    // 数组条件为 AND 语义：全部满足才算匹配
-    if (Array.isArray(condition)) return condition.every(item => matchesDslCondition(record, item));
-    if (typeof condition === 'string') return evaluateDslExpression(condition, record);
-    if (!condition || typeof condition !== 'object') return true;
-    const actual = getField(record, condition.field || 'name');
-    const expected = condition.value ?? '';
-    const op = String(condition.op || 'contains').toLowerCase();
+function matchesOp(actual, op, expected, flags) {
     switch (op) {
         case 'eq':
         case 'equals': return String(actual) === String(expected);
@@ -187,8 +180,35 @@ export function matchesDslCondition(record, condition = {}) {
         case 'contains': return String(actual || '').toLowerCase().includes(String(expected || '').toLowerCase());
         case 'not_contains': return !String(actual || '').toLowerCase().includes(String(expected || '').toLowerCase());
         case 'match':
-        case 'regex': return safeMatch(actual, expected, condition.flags || 'i');
-        case 'in': return Array.isArray(expected) && expected.map(String).includes(String(actual));
+        case 'regex': return safeMatch(actual, expected, flags);
         default: return false;
     }
+}
+
+export function matchesDslCondition(record, condition = {}) {
+    // 数组条件为 AND 语义：全部满足才算匹配
+    if (Array.isArray(condition)) return condition.every(item => matchesDslCondition(record, item));
+    if (typeof condition === 'string') return evaluateDslExpression(condition, record);
+    if (!condition || typeof condition !== 'object') return true;
+    const actual = getField(record, condition.field || 'name');
+    const expected = condition.value ?? '';
+    const op = String(condition.op || 'contains').toLowerCase();
+    const flags = condition.flags || 'i';
+
+    if (op === 'in') return Array.isArray(expected) && expected.map(String).includes(String(actual));
+
+    // value 为数组时按 op 正反语义分派
+    if (Array.isArray(expected)) {
+        // 正向 op：命中任意一个即真（OR）
+        if (op === 'eq' || op === 'equals' || op === 'contains' || op === 'match' || op === 'regex') {
+            return expected.some(v => matchesOp(actual, op, v, flags));
+        }
+        // 反向 op：需对所有元素都不命中（AND）
+        if (op === 'ne' || op === 'not_equals' || op === 'not_contains') {
+            return expected.every(v => matchesOp(actual, op, v, flags));
+        }
+        return false;
+    }
+
+    return matchesOp(actual, op, expected, flags);
 }
