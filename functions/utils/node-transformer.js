@@ -318,6 +318,100 @@ export function setNodeName(url, protocol, newName) {
     }
 }
 
+function tryDecodeBase64(text) {
+    try {
+        const binary = atob(normalizeBase64(String(text || '')));
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return new TextDecoder('utf-8').decode(bytes);
+    } catch { return ''; }
+}
+
+function splitUrlParts(text) {
+    const schemeEnd = text.indexOf('://');
+    if (schemeEnd === -1) return null;
+    const scheme = text.slice(0, schemeEnd + 3);
+    let rest = text.slice(schemeEnd + 3);
+    let hash = '';
+    const hIndex = rest.indexOf('#');
+    if (hIndex !== -1) { hash = rest.slice(hIndex); rest = rest.slice(0, hIndex); }
+    let query = '';
+    const qIndex = rest.indexOf('?');
+    if (qIndex !== -1) { query = rest.slice(qIndex); rest = rest.slice(0, qIndex); }
+    return { scheme, authority: rest, query, hash };
+}
+
+function replaceHostPort(authority, nextServer, nextPort) {
+    const atIndex = authority.lastIndexOf('@');
+    const userinfo = atIndex !== -1 ? authority.slice(0, atIndex + 1) : '';
+    const hostport = atIndex !== -1 ? authority.slice(atIndex + 1) : authority;
+    let host = '', port = '';
+    if (hostport.startsWith('[')) {
+        const close = hostport.indexOf(']');
+        host = hostport.slice(0, close + 1);
+        const after = hostport.slice(close + 1);
+        port = after.startsWith(':') ? after.slice(1) : '';
+    } else {
+        const colon = hostport.lastIndexOf(':');
+        if (colon !== -1) { host = hostport.slice(0, colon); port = hostport.slice(colon + 1); }
+        else { host = hostport; }
+    }
+    if (nextServer !== null) host = /:/.test(nextServer) && !nextServer.startsWith('[') ? `[${nextServer}]` : nextServer;
+    if (nextPort !== null) port = nextPort;
+    return `${userinfo}${host}${port !== '' ? ':' + port : ''}`;
+}
+// SET_NODE_HOST_PORT_PLACEHOLDER
+
+function setAuthorityHostPort(text, nextServer, nextPort) {
+    const parts = splitUrlParts(text);
+    if (!parts) return text;
+    return `${parts.scheme}${replaceHostPort(parts.authority, nextServer, nextPort)}${parts.query}${parts.hash}`;
+}
+
+function setSsHostPort(text, nextServer, nextPort) {
+    const parts = splitUrlParts(text);
+    if (!parts) return text;
+    // SIP002 / 明文形：host:port 在明文 authority 里
+    if (parts.authority.includes('@')) {
+        return `${parts.scheme}${replaceHostPort(parts.authority, nextServer, nextPort)}${parts.query}${parts.hash}`;
+    }
+    // 旧式：base64(method:pass@host:port)
+    const decoded = tryDecodeBase64(parts.authority);
+    if (!decoded || !decoded.includes('@')) return text;
+    const at = decoded.lastIndexOf('@');
+    const rebuilt = `${decoded.slice(0, at + 1)}${replaceHostPort(decoded.slice(at + 1), nextServer, nextPort)}`;
+    return `${parts.scheme}${base64EncodeUtf8(rebuilt)}${parts.query}${parts.hash}`;
+}
+
+/**
+ * 按协议把新的 server/port 写回节点 URL；协议、查询与 #备注 原样保留。
+ * 任一步失败（如 ssr、异常）返回原 URL，绝不产出坏节点。
+ */
+export function setNodeHostPort(url, protocol, patch = {}) {
+    const text = String(url || '');
+    if (!text) return url;
+    const proto = String(protocol || '').toLowerCase();
+    const nextServer = patch.server !== undefined && patch.server !== null ? String(patch.server) : null;
+    const nextPort = patch.port !== undefined && patch.port !== null ? String(patch.port) : null;
+    if (nextServer === null && nextPort === null) return url;
+    try {
+        if (proto === 'vmess') {
+            let safeBody = text.replace('vmess://', '').replace(/-/g, '+').replace(/_/g, '/');
+            while (safeBody.length % 4) safeBody += '=';
+            const config = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(safeBody), c => c.charCodeAt(0))));
+            if (nextServer !== null) config.add = nextServer;
+            if (nextPort !== null) config.port = nextPort;
+            return 'vmess://' + base64EncodeUtf8(JSON.stringify(config));
+        }
+        if (proto === 'ss') return setSsHostPort(text, nextServer, nextPort);
+        if (proto === 'ssr') return url; // host/port 内嵌 base64，暂不支持，保留原节点
+        return setAuthorityHostPort(text, nextServer, nextPort);
+    } catch (e) {
+        console.warn('[NodeUtils] setNodeHostPort failed:', e);
+        return url;
+    }
+}
+
 export function applyRegexRename(name, rules, record = null) {
     let result = String(name || '');
     if (!Array.isArray(rules)) return result;
