@@ -77,8 +77,12 @@ const orderedSelectedSubs = computed({
       <div v-for="sub in filteredSubscriptions" :key="sub.id">
         <label class="flex items-center space-x-3 cursor-pointer">
           <input type="checkbox" :checked="selectedIds.includes(sub.id)" @change="emit('toggle-selection', sub.id)"
-            class="h-4 w-4 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-          <span class="text-sm text-gray-800 dark:text-gray-200 truncate" :title="sub.name">{{ sub.name || t('subscriptions.unnamed') }}</span>
+            class="h-4 w-4 shrink-0 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+          <div class="min-w-0 flex-1">
+            <span class="block text-sm text-gray-800 dark:text-gray-200 truncate" :title="sub.name">{{ sub.name || t('subscriptions.unnamed') }}</span>
+            <!-- 订阅备注：单行截断，完整内容用 title 悬浮提示 -->
+            <span v-if="sub.notes" class="block text-xs text-gray-400 dark:text-gray-500 truncate" :title="sub.notes">{{ sub.notes }}</span>
+          </div>
         </label>
       </div>
       <div v-if="filteredSubscriptions.length === 0" class="text-center text-gray-500 text-sm py-4">

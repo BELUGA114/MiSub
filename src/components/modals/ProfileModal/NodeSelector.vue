@@ -101,8 +101,14 @@ const orderedSelectedNodes = computed({
       <div v-for="node in filteredNodes" :key="node.id">
         <label class="flex items-center space-x-3 cursor-pointer">
           <input type="checkbox" :checked="selectedIds.includes(node.id)" @change="emit('toggle-selection', node.id)"
-            class="h-4 w-4 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-          <span class="text-sm text-gray-800 dark:text-gray-200 truncate" :title="node.name">{{ node.name || t('manualNodes.unnamed') }}</span>
+            class="h-4 w-4 shrink-0 rounded-sm border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+          <div class="min-w-0 flex-1">
+            <span class="block text-sm text-gray-800 dark:text-gray-200 truncate" :title="node.name">{{ node.name || t('manualNodes.unnamed') }}</span>
+            <!-- 节点分组：复用手动节点列表的分组胶囊样式 -->
+            <span v-if="node.group"
+              class="inline-block mt-0.5 max-w-full truncate rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+              :title="node.group">{{ node.group }}</span>
+          </div>
         </label>
       </div>
       <div v-if="filteredNodes.length === 0" class="text-center text-gray-500 text-sm py-4">
