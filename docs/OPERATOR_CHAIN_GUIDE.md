@@ -52,25 +52,9 @@ MiSub 的核心灵魂在于其强大的节点处理引擎。从 v2.5.0 版本开
 
 ## 3. 🛡️ 脚本操作符 (Script) —— 终极定制
 
-如果您有极特殊的转换需求，脚本操作符允许您编写 JavaScript 代码。
+脚本操作符用一套**声明式、受限**的处理规则 (DSL JSON) 来过滤、丢弃、改名和改写节点，由服务端解释执行，**不运行任意 JavaScript**（旧的 `code` / `url` 自定义脚本字段已停用）。
 
-**运行环境变量：**
-- `$nodes`: 当前节点对象数组。
-- `$context`: 运行时上下文（包括用户信息、目标客户端等）。
-- `$utils`: 辅助函数库（如格式化、地区编码转换）。
-
-**代码示例：**
-```javascript
-// 为所有日本节点添加后缀
-return ($nodes) => {
-  return $nodes.map(node => {
-    if (node.name.includes("日本")) {
-      node.name += " [速度极快]";
-    }
-    return node;
-  });
-}
-```
+完整语法、动作、条件与模板函数见 **[处理规则 DSL 指南](./OPERATOR_DSL_GUIDE.md)**。
 
 ---
 
