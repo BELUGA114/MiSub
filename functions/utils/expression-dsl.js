@@ -98,6 +98,12 @@ export function renderDslTemplate(template, ctx = {}) {
     }).trim();
 }
 
+// 数值比较：任一侧非数值（空串/空白/非数字串）一律判为不命中，不抛错
+function compareNumeric(actual, expected, cmp) {
+    if (!isNumeric(actual) || !isNumeric(expected)) return false;
+    return cmp(Number(actual), Number(expected));
+}
+
 function matchesOp(actual, op, expected, flags) {
     switch (op) {
         case 'eq':
@@ -108,6 +114,12 @@ function matchesOp(actual, op, expected, flags) {
         case 'not_contains': return !String(actual || '').toLowerCase().includes(String(expected || '').toLowerCase());
         case 'match':
         case 'regex': return safeMatch(actual, expected, flags);
+        case 'gt': return compareNumeric(actual, expected, (l, r) => l > r);
+        case 'gte': return compareNumeric(actual, expected, (l, r) => l >= r);
+        case 'lt': return compareNumeric(actual, expected, (l, r) => l < r);
+        case 'lte': return compareNumeric(actual, expected, (l, r) => l <= r);
+        case 'starts_with': return String(actual || '').toLowerCase().startsWith(String(expected || '').toLowerCase());
+        case 'ends_with': return String(actual || '').toLowerCase().endsWith(String(expected || '').toLowerCase());
         default: return false;
     }
 }
@@ -127,7 +139,9 @@ export function matchesDslCondition(record, condition = {}) {
     // value 为数组时按 op 正反语义分派
     if (Array.isArray(expected)) {
         // 正向 op：命中任意一个即真（OR）
-        if (op === 'eq' || op === 'equals' || op === 'contains' || op === 'match' || op === 'regex') {
+        if (op === 'eq' || op === 'equals' || op === 'contains' || op === 'match' || op === 'regex'
+            || op === 'gt' || op === 'gte' || op === 'lt' || op === 'lte'
+            || op === 'starts_with' || op === 'ends_with') {
             return expected.some(v => matchesOp(actual, op, v, flags));
         }
         // 反向 op：需对所有元素都不命中（AND）
@@ -156,6 +170,16 @@ const FUNCTIONS = {
     padstart: a => String(a[0] ?? '').padStart(Math.min(Number(a[1]) || 0, 1024), a[2] === undefined ? ' ' : String(a[2])),
     concat: a => a.map(x => String(x ?? '')).join(''),
     extract: a => safeExtract(a[0], a[1], a[2]),
+    split: a => {
+        const parts = String(a[0] ?? '').split(String(a[1] ?? ''));
+        const i = Number(a[2]) || 0;
+        return parts[i] ?? '';
+    },
+    len: a => String(a[0] ?? '').length,
+    number: a => {
+        const n = Number(a[0]);
+        return Number.isNaN(n) ? '' : n;
+    },
 };
 
 function truthy(v) {
