@@ -189,11 +189,13 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
 | `not_contains` | 不包含 | 不区分大小写 |
 | `match` / `regex` | 正则匹配 | 用 `value` 作正则，`flags` 默认 `"i"` |
 | `in` | 属于集合 | `value` 为数组，精确匹配任一 |
+| `gt` / `gte` / `lt` / `lte` | 数值比较 | 按数值比较（`>` / `>=` / `<` / `<=`）；任一侧非数值（空串/非数字）则不命中 |
+| `starts_with` / `ends_with` | 前缀 / 后缀 | 不区分大小写 |
 
 缺省 `field` = `name`，缺省 `op` = `contains`。
 
 **`value` 为数组时的语义**：
-- 正向 `eq` / `contains` / `match` / `regex`：命中 **任意一个** 即真（OR）。这直接实现"字段命中数组里任一关键字"，无需手拼 `香港|HK` 正则。
+- 正向 `eq` / `contains` / `match` / `regex` / `gt` / `gte` / `lt` / `lte` / `starts_with` / `ends_with`：命中 **任意一个** 即真（OR）。这直接实现"字段命中数组里任一关键字"，无需手拼 `香港|HK` 正则。
 - 反向 `ne` / `not_contains`：需对 **所有** 元素都不命中（AND）。
 
 ### 4.2 数组形式（AND）
@@ -259,6 +261,9 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
 | `concat(...)` | 依次拼接为字符串 |
 | `fallback(a, b, …)` | 取第一个非空值 |
 | `pick(cond, a, b)` | 三元：`cond` 为真取 `a` 否则 `b` |
+| `split(s, sep, i?)` | 按 `sep` 切分取第 `i` 段（默认 0），越界取空串 |
+| `len(s)` | 字符串长度（数字） |
+| `number(s)` | 显式转数值，非数值得空串；用于规避 `+` 的拼接/相加歧义 |
 
 函数名大小写不敏感。示例：`{upper(protocol)}`、`{extract(name, '(\\d+)$', 1)}`、`{padstart(index, 3, '0')}`、`{fallback(regionZh, '其他')}`。
 
@@ -328,8 +333,8 @@ vless://uuid@cf.example.com:443?type=xhttp&security=tls&sni=a.example.com&mode=s
 
 - **动作**：`filter`（保留）、`discard`（丢弃）、`rename`（改名）、`set-query`（改 query）、`set-field`（改 name/server/port/metadata）。
 - **字段**：`name`、`protocol`、`server`、`port`、`url`、`originalName`、`regionZh`/`region`/`emoji`、`metadata.*`、`index`、`target`；`query.*` 仅 `set-query.when`。
-- **运算符**：`eq`/`ne`/`contains`/`not_contains`/`match`(`regex`)/`in`；`value` 为数组时正向=OR、反向=全部不命中。
-- **表达式**：`=== !== > >= < <=`、`&& || !`、算术 `+ - * / %`、`( )`；函数 `upper/lower/title/trim/contains/match/replace/extract/slice/padstart/concat/fallback/pick`。
+- **运算符**：`eq`/`ne`/`contains`/`not_contains`/`match`(`regex`)/`in`/`gt`/`gte`/`lt`/`lte`/`starts_with`/`ends_with`；`value` 为数组时正向=OR、反向=全部不命中。
+- **表达式**：`=== !== > >= < <=`、`&& || !`、算术 `+ - * / %`、`( )`；函数 `upper/lower/title/trim/contains/match/replace/extract/slice/padstart/concat/fallback/pick/split/len/number`。
 
 如需操作符链总览与节点数据模型，另见 `docs/OPERATOR_CHAIN_GUIDE.md` 与 `docs/data-model.md`。
 
