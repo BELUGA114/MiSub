@@ -82,6 +82,18 @@ function opFilter(nodes, params) {
 }
 
 /**
+ * 计算分组计数的分组键：供结构化 rename 的 indexScope 与 limit 的 groupBy 共用。
+ * region/regionProtocol 依赖富化后的 enriched.regionZh；name 用 cleanName 兜底原始 name。
+ */
+function nodeGroupKey(record, enriched, scope) {
+    if (scope === 'region') return `r:${enriched.regionZh || 'Other'}`;
+    if (scope === 'protocol') return `p:${record.protocol}`;
+    if (scope === 'regionProtocol') return `rp:${enriched.regionZh || 'Other'}|${record.protocol}`;
+    if (scope === 'name') return `n:${record.metadata?.cleanName || record.name}`;
+    return 'global';
+}
+
+/**
  * Rename Operator
  */
 function opRename(nodes, params, enableEmoji = true) {
@@ -132,12 +144,9 @@ function opRename(nodes, params, enableEmoji = true) {
         result = result.map((r, index) => {
             const enriched = NodeUtils.ensureRegionInfo(r, enableEmoji);
 
-            // 确定索引分组键
-            let groupKey = 'global';
-            if (scope === 'region') groupKey = `r:${enriched.regionZh || 'Other'}`;
-            else if (scope === 'protocol') groupKey = `p:${r.protocol}`;
-            else if (scope === 'regionProtocol') groupKey = `rp:${enriched.regionZh || 'Other'}|${r.protocol}`;
-            
+            // 确定索引分组键（region/protocol/regionProtocol/name/global）
+            const groupKey = nodeGroupKey(r, enriched, scope);
+
             const groupIndex = (counters.get(groupKey) || 0) + 1;
             counters.set(groupKey, groupIndex);
 
@@ -454,6 +463,26 @@ export async function runOperatorChain(nodeUrls, operators, context = {}) {
                 }
                 records = Array.from(seenNodes.values());
                 break;
+            case 'limit': {
+                // 集合级限量：按当前顺序，每组保留前 count 个；count 非法时跳过、不清空
+                const count = Number(params?.count);
+                if (!Number.isInteger(count) || count <= 0) {
+                    console.warn(`[Operator] limit: invalid count "${params?.count}", skipped.`);
+                    break;
+                }
+                const groupBy = params?.groupBy || 'none';
+                if (groupBy === 'region' || groupBy === 'regionProtocol') {
+                    records = records.map(r => NodeUtils.ensureRegionInfo(r, true));
+                }
+                const limitCounters = new Map();
+                records = records.filter(r => {
+                    const key = nodeGroupKey(r, r, groupBy);
+                    const n = (limitCounters.get(key) || 0) + 1;
+                    limitCounters.set(key, n);
+                    return n <= count;
+                });
+                break;
+            }
         }
     }
 

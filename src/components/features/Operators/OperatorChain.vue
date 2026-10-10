@@ -5,6 +5,7 @@ import FilterEditor from './components/FilterEditor.vue';
 import RenameEditor from './components/RenameEditor.vue';
 import SortEditor from './components/SortEditor.vue';
 import DedupEditor from './components/DedupEditor.vue';
+import LimitEditor from './components/LimitEditor.vue';
 import ScriptDslEditor from './components/ScriptDslEditor.vue';
 
 const props = defineProps({
@@ -97,6 +98,7 @@ const getInitialParams = (type) => {
     case 'script': return { url: '', dsl: [] };
     case 'sort': return { keys: [{ key: 'region', order: 'asc', customOrder: ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '法国', '加拿大'] }] };
     case 'dedup': return { mode: 'serverPort', includeProtocol: true, prefer: { protocolOrder: [] } };
+    case 'limit': return { count: 10, groupBy: 'none' };
     default: return {};
   }
 };
@@ -127,7 +129,7 @@ const toggleOperator = (event, index) => {
 };
 
 const operatorLabel = (type) => t(`operators.${type}`);
-const operatorTypes = ['filter', 'rename', 'script', 'sort', 'dedup'];
+const operatorTypes = ['filter', 'rename', 'script', 'sort', 'dedup', 'limit'];
 
 const getOperatorIcon = (type) => {
     switch (type) {
@@ -136,6 +138,7 @@ const getOperatorIcon = (type) => {
         case 'script': return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>';
         case 'sort': return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>';
         case 'dedup': return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>';
+        case 'limit': return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h6" /></svg>';
     }
 };
 
@@ -253,6 +256,7 @@ const updateOperatorParams = (index, params) => {
               <RenameEditor v-else-if="op.type === 'rename'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
               <SortEditor v-else-if="op.type === 'sort'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
               <DedupEditor v-else-if="op.type === 'dedup'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
+              <LimitEditor v-else-if="op.type === 'limit'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
               <ScriptDslEditor v-else-if="op.type === 'script'" :modelValue="op.params" @update:modelValue="(val) => updateOperatorParams(index, val)" />
 
             </div>

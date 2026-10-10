@@ -65,6 +65,15 @@ const presetRegexRules = [
 
 const statusLabel = (enabled) => t(enabled ? 'operators.statusOn' : 'operators.statusOff');
 
+// 索引分组方式：与后端 rename 的 indexScope（nodeGroupKey）取值一致
+const indexScopeOptions = [
+  { value: 'global', labelKey: 'operators.indexScopeGlobal' },
+  { value: 'region', labelKey: 'operators.indexScopeRegion' },
+  { value: 'protocol', labelKey: 'operators.indexScopeProtocol' },
+  { value: 'regionProtocol', labelKey: 'operators.indexScopeRegionProtocol' },
+  { value: 'name', labelKey: 'operators.indexScopeName' },
+];
+
 const applyPresetRegex = (rule) => {
   const current = { ...(props.modelValue.regex || { enabled: true, rules: [] }) };
   current.enabled = true;
@@ -181,12 +190,27 @@ const applyPresetRegex = (rule) => {
           
           <div class="flex items-center gap-2 mt-3 pt-3 border-t border-teal-100/20">
             <span class="text-[10px] text-teal-600/60 font-medium">{{ t('operators.startIndex') }}</span>
-            <input 
+            <input
               :value="props.modelValue.template.offset || 1"
               @input="(e) => updateTemplate({ offset: parseInt(e.target.value) || 1 })"
               type="number"
               class="w-14 px-2 py-1 text-[10px] rounded bg-white dark:bg-gray-800 border border-teal-100/30 outline-none"
             />
+          </div>
+
+          <div class="flex flex-wrap items-center gap-1.5 mt-3 pt-3 border-t border-teal-100/20">
+            <span class="text-[10px] text-teal-600/60 font-medium mr-1">{{ t('operators.indexScope') }}</span>
+            <button v-for="opt in indexScopeOptions" :key="opt.value"
+              @click="updateTemplate({ indexScope: opt.value })"
+              :class="[
+                'text-[9px] px-2 py-0.5 rounded border transition-colors',
+                (props.modelValue.template.indexScope || 'region') === opt.value
+                  ? 'bg-teal-600 border-teal-500 text-white'
+                  : 'bg-white dark:bg-gray-800 border-teal-100/30 text-gray-500 hover:bg-teal-50 dark:hover:bg-teal-900/20'
+              ]"
+            >
+              {{ t(opt.labelKey) }}
+            </button>
           </div>
         </div>
       </div>

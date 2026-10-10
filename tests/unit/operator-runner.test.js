@@ -380,6 +380,50 @@ describe('opScript set-field（server/port）', () => {
   });
 });
 
+describe('limit 链算子', () => {
+  const mk = (host, name) => `trojan://p@${host}:443#${encodeURIComponent(name)}`;
+  const urls = [mk('hk1.example.com', '香港01'), mk('hk2.example.com', '香港02'), mk('jp1.example.com', '日本01'), mk('jp2.example.com', '日本02')];
+
+  it('全局保留前 N 个', async () => {
+    const out = await runOperatorChain(urls, [{ type: 'limit', params: { count: 2 } }]);
+    expect(out).toHaveLength(2);
+    expect(decodeURIComponent(out[0])).toContain('#香港01');
+    expect(decodeURIComponent(out[1])).toContain('#香港02');
+  });
+
+  it('按地区各保留 N 个', async () => {
+    const out = await runOperatorChain(urls, [{ type: 'limit', params: { count: 1, groupBy: 'region' } }]);
+    const names = out.map(u => decodeURIComponent(u.slice(u.lastIndexOf('#') + 1)));
+    expect(names).toEqual(['香港01', '日本01']);
+  });
+
+  it('非法 count 原样返回并告警', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const out = await runOperatorChain(urls, [{ type: 'limit', params: { count: 0 } }]);
+    expect(out).toHaveLength(4);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('空数组安全', async () => {
+    const out = await runOperatorChain([], [{ type: 'limit', params: { count: 2 } }]);
+    expect(out).toEqual([]);
+  });
+});
+
+describe('rename indexScope=name 同名编号', () => {
+  const mk = (host, name) => `trojan://p@${host}:443#${encodeURIComponent(name)}`;
+  it('同名节点组内各自从 1 递增', async () => {
+    const urls = [mk('a.example.com', '香港'), mk('b.example.com', '香港'), mk('c.example.com', '日本')];
+    const out = await runOperatorChain(urls, [{
+      type: 'rename',
+      params: { template: { enabled: true, template: '{name}-{index}', indexScope: 'name' } }
+    }]);
+    const names = out.map(u => decodeURIComponent(u.slice(u.lastIndexOf('#') + 1)));
+    expect(names).toEqual(['香港-1', '香港-2', '日本-1']);
+  });
+});
+
 describe('opScript set-field 同时改 name 与 server/port（vmess 组合）', () => {
   const vmess = 'vmess://eyJ2IjoiMiIsInBzIjoi8J+HuvCfh7ggVVMgTm9kZSAwMSIsImFkZCI6InVzMS5leGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImFpZCI6MCwibmV0IjoidGNwIiwidHlwZSI6Im5vbmUiLCJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6InRscyJ9';
   it('name 与 port 同时生效，其余字段保留', async () => {
