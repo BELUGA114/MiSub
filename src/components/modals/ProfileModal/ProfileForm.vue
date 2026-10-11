@@ -6,6 +6,7 @@ import Switch from '../../ui/Switch.vue';
 import OperatorChain from '../../features/Operators/OperatorChain.vue';
 import { TRANSFORM_ASSETS } from '@/constants/transform-assets';
 import { useI18n } from '@/i18n/index.js';
+import { collectUsedSlots } from '@/utils/credentialSlots.js';
 
 const { t } = useI18n();
 
@@ -33,6 +34,10 @@ const props = defineProps({
   globalSettings: {
     type: Object,
     default: () => ({})
+  },
+  allManualNodes: {
+    type: Array,
+    default: () => []
   }
 });
 
@@ -105,6 +110,25 @@ watch(
   enforceExternalSchemeConstraints,
   { immediate: true }
 );
+
+// 凭证槽：汇总该 Profile 选中手动节点用到的槽（带基准凭证），逐槽覆盖
+// 注：本文件 localProfile 为 prop（非 ref），沿用既有写法直接读写 props.localProfile 的嵌套属性
+const usedSlots = computed(() => collectUsedSlots(props.localProfile?.manualNodes || [], props.allManualNodes || []));
+
+// 写入前确保 credentials 为对象；Vue3 Proxy 对新增键天然响应式
+function ensureCred() {
+  if (!props.localProfile.credentials || typeof props.localProfile.credentials !== 'object' || Array.isArray(props.localProfile.credentials)) {
+    props.localProfile.credentials = {};
+  }
+}
+
+// 用模板基准凭证一键填充各未覆盖的槽
+function fillFromBaseline() {
+  ensureCred();
+  for (const s of usedSlots.value) {
+    if (!props.localProfile.credentials[s.slot]) props.localProfile.credentials[s.slot] = s.baseline;
+  }
+}
 
 </script>
 
@@ -375,9 +399,41 @@ watch(
           <span class="text-[10px] text-gray-400">{{ t('profileModal.pipelineDesc') }}</span>
         </div>
         
-        <OperatorChain 
+        <OperatorChain
           v-model="localProfile.operators"
         />
+      </div>
+
+      <!-- === 区块 D：凭证 (Credential Slots) === -->
+      <div v-if="usedSlots.length" class="space-y-4">
+        <div class="flex items-center justify-between gap-2 border-l-4 border-amber-500 pl-3">
+          <div class="flex items-center gap-2">
+            <h3 class="text-sm font-bold text-gray-900 dark:text-white">凭证</h3>
+            <span class="text-[10px] text-gray-400">按槽覆盖手动节点凭证；留空回落模板基准</span>
+          </div>
+          <button
+            type="button"
+            @click="fillFromBaseline"
+            class="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 focus:outline-hidden"
+          >
+            用基准填充
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 bg-white dark:bg-gray-800/40 p-4 border border-gray-100 dark:border-gray-700 misub-radius-lg shadow-sm">
+          <div v-for="s in usedSlots" :key="s.slot" class="space-y-1.5">
+            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ s.slot }}</label>
+            <input
+              type="password"
+              autocomplete="off"
+              :value="localProfile.credentials?.[s.slot] || ''"
+              @input="e => { ensureCred(); localProfile.credentials[s.slot] = e.target.value; }"
+              :placeholder="s.baseline ? '留空＝用模板基准凭证' : '留空＝用模板基准'"
+              class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md sm:text-sm dark:text-white"
+            />
+            <p v-if="!(localProfile.credentials?.[s.slot])" class="mt-1 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">未覆盖，将使用模板基准凭证</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>

@@ -316,14 +316,15 @@ const updateSelectedIds = (listName, newIds) => {
     </template>
     <template #body>
       <div v-if="localProfile" class="space-y-6">
-        <ProfileForm 
-          :local-profile="localProfile" 
-          :show-advanced="showAdvanced" 
+        <ProfileForm
+          :local-profile="localProfile"
+          :show-advanced="showAdvanced"
           :ui-text="uiText"
-          :prefix-toggle-options="prefixToggleOptions" 
+          :prefix-toggle-options="prefixToggleOptions"
           :group-prefix-toggle-options="groupPrefixToggleOptions"
           :global-settings="dataStore.settings"
-          @toggle-advanced="showAdvanced = !showAdvanced" 
+          :all-manual-nodes="allManualNodes"
+          @toggle-advanced="showAdvanced = !showAdvanced"
         />
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
