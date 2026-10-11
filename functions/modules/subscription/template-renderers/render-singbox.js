@@ -66,7 +66,6 @@ function buildOutbound(proxy) {
             server_port: serverPort,
             uuid: proxy.uuid || '',
             security: proxy.cipher || 'auto',
-            udp_relay_mode: proxy['udp-relay-mode'] || 'native',
             congestion_control: proxy['congestion-control'] || 'cubic',
             alter_id: Number.isFinite(Number(proxy.alterId)) ? Number(proxy.alterId) : 0
         };

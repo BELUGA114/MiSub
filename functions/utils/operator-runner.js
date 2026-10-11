@@ -13,7 +13,7 @@ import { matchesDslCondition, renderDslTemplate } from './expression-dsl.js';
 function normalizeRules(rules) {
     if (!rules) return [];
     if (!Array.isArray(rules)) {
-        if (typeof rules === 'string') return rules.split(/\r?\n/).filter(line => line.trim() !== '');
+        if (typeof rules === 'string') return rules.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
         return [];
     }
     
@@ -21,7 +21,7 @@ function normalizeRules(rules) {
     for (const rule of rules) {
         if (typeof rule === 'string') {
             // 支持在单个算子输入中通过 | 或 换行符 传递多个子规则
-            const parts = rule.split(/\r?\n/).filter(p => p.trim() !== '');
+            const parts = rule.split(/\r?\n/).map(p => p.trim()).filter(Boolean);
             normalized.push(...parts);
         } else if (rule && rule.pattern) {
             normalized.push(rule);

@@ -267,6 +267,19 @@ describe('operator runner', () => {
     expect(decodeURIComponent(noEmoji[0])).not.toContain('🌍');
   });
 
+  it('applies alternation regex include rules and a separate exclude rule', async () => {
+    const urls = [
+      'ss://YWVzLTEyOC1nY206cGFzcw@example.com:8388#HK-01',
+      'ss://YWVzLTEyOC1nY206cGFzcw@example.com:8389#US-01',
+      'ss://YWVzLTEyOC1nY206cGFzcw@example.com:8390#JP-01',
+    ];
+    const result = await runOperatorChain(urls, [
+      { type: 'filter', params: { include: { enabled: true, rules: ['HK|US'] }, exclude: { enabled: true, rules: ['US'] } } },
+    ]);
+    expect(result).toHaveLength(1);
+    expect(decodeURIComponent(result[0])).toContain('#HK-01');
+  });
+
 });
 
 describe('opScript filter/discard 条件增强', () => {

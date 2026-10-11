@@ -577,4 +577,17 @@ custom_proxy_group=🤖 AI 服务\`select\`[]🚀 节点选择\`[]DIRECT
         });
         expect(parsed.rules).toContain('RULE-SET,ai_0,🤖 AI 服务');
     });
+
+    it('omits Clash-only VMess udp_relay_mode from sing-box template output', () => {
+        const rendered = renderSingboxFromIniTemplate(
+            '[Proxy Group]\nNode = select, VMessNode\n[Rule]\nMATCH,Node',
+            {
+                proxies: [{ name: 'VMessNode', type: 'vmess', server: 'vmess.example.com', port: 443, uuid: 'safe-uuid', cipher: 'auto', 'udp-relay-mode': 'native' }],
+                targetFormat: 'singbox',
+            }
+        );
+        const parsed = JSON.parse(rendered);
+        const vmess = parsed.outbounds.find((outbound) => outbound.tag === 'VMessNode');
+        expect(vmess?.udp_relay_mode).toBeUndefined();
+    });
 });
