@@ -227,12 +227,10 @@ function parseVlessUrl(url) {
             if (params.get('sid')) realityOpts['short-id'] = params.get('sid');
             if (params.get('spx')) realityOpts['spider-x'] = params.get('spx');
             if (Object.keys(realityOpts).length > 0) {
-                // 抗量子密钥交换需要服务端 Xray 同样支持，逐节点显式声明才输出，避免拖垮旧服务端。
-                // 该字段只有 Mihomo 读取，其余渲染器仅取 public-key/short-id/spider-x，不会带到别的格式。
-                const mlkemFlag = params.get('mlkem') ?? params.get('support-x25519mlkem768');
-                if (mlkemFlag === '1' || mlkemFlag === 'true') {
-                    realityOpts['support-x25519mlkem768'] = true;
-                }
+                // X25519-MLKEM768 抗量子密钥交换默认开启（兼容新版 Xray-core/3x-ui，向下兼容旧版），
+                // 仅当 URL 显式 mlkem=0 / false 时关闭；显式存 false 以保证 clash→url 往返可还原。
+                const mlkemFlag = params.get('mlkem') ?? params.get('support-x25519mlkem768') ?? params.get('sxm');
+                realityOpts['support-x25519mlkem768'] = !(mlkemFlag === '0' || mlkemFlag === 'false');
                 proxy['reality-opts'] = realityOpts;
             }
         } else if (security === 'tls') {
@@ -393,6 +391,18 @@ function parseTrojanUrl(url) {
         // Skip cert verify
         if (params.get('allowInsecure') === '1') {
             proxy['skip-cert-verify'] = true;
+        }
+
+        // Reality 配置（Trojan Reality，默认开启 mlkem，与 VLESS 一致）
+        if (params.get('security') === 'reality') {
+            proxy.tls = true;
+            const realityOpts = {};
+            if (params.get('pbk')) realityOpts['public-key'] = params.get('pbk');
+            if (params.get('sid')) realityOpts['short-id'] = params.get('sid');
+            if (params.get('spx')) realityOpts['spider-x'] = params.get('spx');
+            const sxm = params.get('mlkem') ?? params.get('support-x25519mlkem768') ?? params.get('sxm');
+            realityOpts['support-x25519mlkem768'] = !(sxm === '0' || sxm === 'false');
+            if (Object.keys(realityOpts).length > 0) proxy['reality-opts'] = realityOpts;
         }
 
         // [重要] dialer-proxy 链式代理

@@ -135,6 +135,10 @@ function parseSurgeOrQxLine(line) {
                         proxy['reality-opts'] = proxy['reality-opts'] || {};
                         proxy['reality-opts']['short-id'] = v;
                     }
+                    if (k === 'reality-support-x25519mlkem768' || k === 'support-x25519mlkem768') {
+                        proxy['reality-opts'] = proxy['reality-opts'] || {};
+                        proxy['reality-opts']['support-x25519mlkem768'] = v === 'true' || v === '1';
+                    }
                     if (k === 'version') proxy.version = parseInt(v);
                     if (k === 'reuse' && v === 'true') proxy.reuse = true;
                     if (k === 'tfo' && v === 'true') proxy.tfo = true;

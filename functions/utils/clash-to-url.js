@@ -122,6 +122,15 @@ export function convertClashProxyToUrl(proxy) {
                 if (grpcOpts['grpc-service-name']) params.push(`serviceName=${encodeURIComponent(grpcOpts['grpc-service-name'])}`);
                 if (grpcOpts['grpc-mode']) params.push(`mode=${encodeURIComponent(grpcOpts['grpc-mode'])}`);
             }
+            const realityOpts = proxy['reality-opts'];
+            if (realityOpts) {
+                params.push('security=reality');
+                if (realityOpts['public-key']) params.push(`pbk=${encodeURIComponent(realityOpts['public-key'])}`);
+                if (realityOpts['short-id']) params.push(`sid=${encodeURIComponent(realityOpts['short-id'])}`);
+                if (realityOpts['spider-x']) params.push(`spx=${encodeURIComponent(realityOpts['spider-x'])}`);
+                const sxm = realityOpts['support-x25519mlkem768'] ?? realityOpts.support_x25519mlkem768;
+                if (sxm === false || sxm === 'false' || sxm === 0 || sxm === '0') params.push('mlkem=0');
+            }
             const sni = proxy.servername ?? proxy.sni;
             if (sni !== undefined) params.push(`sni=${encodeURIComponent(sni)}`);
             if (proxy['client-fingerprint']) params.push(`fp=${encodeURIComponent(proxy['client-fingerprint'])}`);
@@ -175,6 +184,8 @@ export function convertClashProxyToUrl(proxy) {
                 if (realityOpts['public-key']) params.push(`pbk=${encodeURIComponent(realityOpts['public-key'])}`);
                 if (realityOpts['short-id']) params.push(`sid=${encodeURIComponent(realityOpts['short-id'])}`);
                 if (realityOpts['spider-x']) params.push(`spx=${encodeURIComponent(realityOpts['spider-x'])}`);
+                const sxm = realityOpts['support-x25519mlkem768'] ?? realityOpts.support_x25519mlkem768;
+                if (sxm === false || sxm === 'false' || sxm === 0 || sxm === '0') params.push('mlkem=0');
             } else if (proxy.tls) {
                 params.push('security=tls');
             }
