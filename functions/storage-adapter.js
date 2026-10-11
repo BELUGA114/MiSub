@@ -741,7 +741,17 @@ export class StorageFactory {
 }
 
 /**
- * 数据迁移工具
+ * KV → D1 需要搬运的业务键。
+ *
+ * 原实现只搬 subscriptions / profiles / settings 三个键，其余业务数据（DNS 模板、
+ * 规则模板、客户端、留言板……）留在 KV 里，迁移后按 storageType='d1' 读就全成空，
+ * 而接口仍返回「数据已成功迁移」。用户照官方引导解绑 KV 后就再也取不回。
+ *
+ * 刻意不搬的键，各有原因：
+ *   misub_webdav_backup_lock  —— 定时任务互斥锁，搬一个过期锁过去会挡住下次备份
+ *   misub_system_logs         —— 诊断日志，体积可能很大，非业务数据
+ *   misub_error_reports       —— 同上
+ *   misub_data_v1             —— 更早的遗留格式，由 api-router 的独立升级路径处理
  */
 const D1_MIGRATION_KEYS = [
     DATA_KEYS.SUBSCRIPTIONS,
@@ -753,9 +763,13 @@ const D1_MIGRATION_KEYS = [
     'misub_settings_v1',
     'misub_restore_snapshot_latest'
 ];
+/** 需要按前缀枚举后逐条搬运的键 */
 const D1_MIGRATION_KEY_PREFIXES = [DATA_KEYS.PROFILE_DOWNLOAD_COUNT_PREFIX];
 export { D1_MIGRATION_KEYS, D1_MIGRATION_KEY_PREFIXES };
 
+/**
+ * 数据迁移工具
+ */
 export class DataMigrator {
     /**
      * 从 KV 迁移到 D1
