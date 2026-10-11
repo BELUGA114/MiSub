@@ -424,7 +424,7 @@ function fillFromBaseline() {
           <div v-for="s in usedSlots" :key="s.slot" class="space-y-1.5">
             <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ s.slot }}</label>
             <input
-              type="password"
+              type="text"
               autocomplete="off"
               :value="localProfile.credentials?.[s.slot] || ''"
               @input="e => { ensureCred(); localProfile.credentials[s.slot] = e.target.value; }"
