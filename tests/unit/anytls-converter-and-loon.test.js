@@ -9,6 +9,12 @@ describe('anytls 前端转换与 builtin-loon', () => {
         expect(url.startsWith('anytls://')).toBe(true);
         expect(url).toContain('sni=a.com');
     });
+    it('前端 anytls 带 pinnedPeerCertSha256 与 padding，与后端对齐', () => {
+        const url = convertClashProxyToUrl({ name: 'Any', type: 'anytls', server: 'a.com', port: 443, password: 'pw', sni: 'a.com', pinnedPeerCertSha256: 'ABCDEF', padding: '100-200' });
+        const qs = new URLSearchParams(url.split('?')[1].split('#')[0]);
+        expect(qs.get('pinnedPeerCertSha256')).toBe('ABCDEF');
+        expect(qs.get('padding')).toBe('100-200');
+    });
     it('builtin-loon 输出含 anytls 行', () => {
         const result = generateBuiltinLoonConfig('anytls://pw@a.com:443?sni=a.com#AnyNode');
         expect(result).toContain('= anytls');

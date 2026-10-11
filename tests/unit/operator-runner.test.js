@@ -280,6 +280,18 @@ describe('operator runner', () => {
     expect(decodeURIComponent(result[0])).toContain('#HK-01');
   });
 
+  it('trims surrounding whitespace in include rules before matching', async () => {
+    const urls = [
+      'ss://YWVzLTEyOC1nY206cGFzcw@example.com:8388#HK-01',
+      'ss://YWVzLTEyOC1nY206cGFzcw@example.com:8389#US-01',
+    ];
+    const result = await runOperatorChain(urls, [
+      { type: 'filter', params: { include: { enabled: true, rules: [' HK '] } } },
+    ]);
+    expect(result).toHaveLength(1);
+    expect(decodeURIComponent(result[0])).toContain('#HK-01');
+  });
+
 });
 
 describe('opScript filter/discard 条件增强', () => {

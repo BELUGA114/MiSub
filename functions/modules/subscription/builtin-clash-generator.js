@@ -243,10 +243,11 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
             forceQuotes: false
         });
 
-        // 最终清理，确保输出没有控制字符
+        // Stash 托管配置自动更新头：仅 Stash UA 且有托管地址时前置 #SUBSCRIBED
         if (/stash/i.test(userAgent || '') && options.managedConfigUrl) {
             yamlStr = `#SUBSCRIBED ${options.managedConfigUrl}\n${yamlStr}`;
         }
+        // 最终清理，确保输出没有控制字符
         return cleanControlChars(yamlStr);
     } catch (e) {
         console.error('[BuiltinClash] Generation failed:', e);

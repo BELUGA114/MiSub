@@ -11,8 +11,8 @@ export function convertAnytlsToUrl(proxy) {
         const params = new URLSearchParams();
 
         // TLS SNI
-        if (proxy.servername || proxy.sni) {
-            params.set('sni', proxy.servername || proxy.sni);
+        if (proxy.sni || proxy.servername) {
+            params.set('sni', proxy.sni || proxy.servername);
         }
 
         // ALPN
@@ -24,6 +24,17 @@ export function convertAnytlsToUrl(proxy) {
         // 跳过证书验证
         if (proxy['skip-cert-verify'] !== undefined) {
             params.set('allowInsecure', proxy['skip-cert-verify'] ? '1' : '0');
+        }
+
+        // 固定对端证书指纹（与后端 clash-to-url 的别名读取保持一致）
+        const pinnedPeerCertSha256 = proxy.pinnedPeerCertSha256 || proxy['pinned-peer-cert-sha256'] || proxy['peer-cert-sha256'] || proxy.certSha256;
+        if (pinnedPeerCertSha256) {
+            params.set('pinnedPeerCertSha256', pinnedPeerCertSha256);
+        }
+
+        // 填充策略
+        if (proxy.padding !== undefined) {
+            params.set('padding', proxy.padding);
         }
 
         // 构建 URL
