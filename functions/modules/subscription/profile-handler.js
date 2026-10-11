@@ -2,7 +2,7 @@ import { StorageFactory } from '../../storage-adapter.js';
 import { createJsonResponse } from '../utils.js';
 import { parseNodeInfo } from '../utils/geo-utils.js';
 import { calculateProtocolStats, calculateRegionStats } from '../utils/node-parser.js';
-import { applyNodeTransformPipeline } from '../../utils/node-transformer.js';
+import { applyNodeTransformPipeline, applyCredentialOverride } from '../../utils/node-transformer.js';
 import { runOperatorChain } from '../../utils/operator-runner.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS } from '../config.js';
 import { fetchSubscriptionNodes } from './node-fetcher.js';
@@ -138,8 +138,10 @@ export async function handleProfileMode(request, env, profileId, userAgent, appl
     // 先将用户自定义名称写入 URL（与订阅生成流程保持一致），
     // 确保 parseNodeInfo 和节点转换管道能基于正确名称工作
     const manualNodeResults = targetManualNodes.map(node => {
+        // 凭证槽：若该手动节点挂了槽且 Profile 覆盖了该槽，则按协议改写凭证；否则保持基准
+        const baseUrl = applyCredentialOverride(node.url, node?.credentialSlot, profile?.credentials || {});
         const customName = typeof node.name === 'string' ? node.name.trim() : '';
-        const effectiveUrl = customName ? applyManualNodeName(node.url, customName) : node.url;
+        const effectiveUrl = customName ? applyManualNodeName(baseUrl, customName) : baseUrl;
 
         const nodeInfo = parseNodeInfo(effectiveUrl);
         return {
