@@ -990,7 +990,11 @@ proxy['public-key'] = publicKey;
 // 本地地址
 const address = params.get('address');
 if (address) {
-proxy.ip = address.split(',').map(a => a.trim());
+const addrs = address.split(',').map(a => a.trim().replace(/\/\d+$/, '')).filter(Boolean);
+const v4 = addrs.filter(a => !a.includes(':'));
+const v6 = addrs.filter(a => a.includes(':'));
+if (v4.length) proxy.ip = v4;
+if (v6.length) proxy.ipv6 = v6;
 }
 
 // Allowed IPs

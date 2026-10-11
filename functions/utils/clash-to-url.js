@@ -313,10 +313,11 @@ export function convertClashProxyToUrl(proxy) {
             if (!proxy['private-key'] || !proxy.server || !proxy.port) return null;
             const params = new URLSearchParams();
             if (proxy['public-key'] || proxy.publicKey) params.set('publickey', proxy['public-key'] || proxy.publicKey);
-            if (proxy.ip || proxy['local-address']) {
-                const addr = Array.isArray(proxy.ip || proxy['local-address']) ? (proxy.ip || proxy['local-address']).join(',') : (proxy.ip || proxy['local-address']);
-                params.set('address', addr);
-            }
+            const v4addr = proxy.ip || proxy['local-address'];
+            const addrParts = [];
+            if (v4addr) addrParts.push(...(Array.isArray(v4addr) ? v4addr : [v4addr]));
+            if (proxy.ipv6) addrParts.push(...(Array.isArray(proxy.ipv6) ? proxy.ipv6 : [proxy.ipv6]));
+            if (addrParts.length) params.set('address', [...new Set(addrParts)].join(','));
             if (proxy['allowed-ips'] || proxy.allowedIPs) {
                 const ips = Array.isArray(proxy['allowed-ips'] || proxy.allowedIPs) ? (proxy['allowed-ips'] || proxy.allowedIPs).join(',') : (proxy['allowed-ips'] || proxy.allowedIPs);
                 params.set('allowedips', ips);
