@@ -80,6 +80,9 @@ export async function handleApiRequest(request, env, context = null) {
 
     // [新增] 数据存储迁移接口 (KV -> D1)
     if (path === '/migrate_to_d1') {
+        if (request.method !== 'POST') {
+            return createJsonResponse({ error: 'Method Not Allowed' }, 405, { Allow: 'POST' });
+        }
         if (!await authMiddleware(request, env)) {
             return createJsonResponse({ error: 'Unauthorized' }, 401);
         }

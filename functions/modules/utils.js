@@ -78,6 +78,23 @@ async function safeKvGet(kv, key) {
     }
 }
 
+/**
+ * 读取管理员密码时，不把 KV 存储故障误判为"密码未设置"。
+ * 存储故障（暂停/限额）记录告警后重新抛出，交由上层 fail-closed。
+ */
+async function getAdminPasswordFromKv(env) {
+    const kv = getKV(env);
+    if (!kv) return null;
+    try {
+        return await kv.get('SYSTEM_ADMIN_PASSWORD');
+    } catch (error) {
+        if (isStorageUnavailableError(error)) {
+            console.warn(`[Auth Storage] KV get failed for SYSTEM_ADMIN_PASSWORD: ${error.message}`);
+        }
+        throw error;
+    }
+}
+
 async function safeKvPut(kv, key, value) {
     if (!kv) return false;
     try {
@@ -168,8 +185,9 @@ export async function getAdminPassword(env) {
 
     const kv = getKV(env);
     if (kv) {
-        const kvPassword = await safeKvGet(kv, 'SYSTEM_ADMIN_PASSWORD');
+        const kvPassword = await getAdminPasswordFromKv(env);
         if (kvPassword) return String(kvPassword).trim();
+        return 'admin';
     }
 
     return 'admin';
@@ -242,6 +260,9 @@ export async function isUsingDefaultPassword(env) {
  * @param {string} newPassword - 新密码
  */
 export async function setAdminPassword(env, newPassword) {
+    if (getRuntimeEnvValue(env, 'ADMIN_PASSWORD')) {
+        throw new Error('当前部署通过环境变量 ADMIN_PASSWORD 设置密码，请在平台控制台修改该变量');
+    }
     const kv = getKV(env);
     if (!kv) {
         throw new Error('当前部署未绑定 KV，请在平台控制台通过环境变量 ADMIN_PASSWORD 修改密码');
