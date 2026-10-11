@@ -245,6 +245,20 @@ const protocolColorMap = {
               />
             </div>
           </div>
+
+          <!-- 凭证槽（可选）：挂到某个凭证槽后，Profile 可按槽覆盖该节点凭证 -->
+          <div class="relative">
+            <div class="flex flex-col">
+              <label for="node-credential-slot" class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 ml-1">
+                凭证槽（可选）
+              </label>
+              <Input
+                id="node-credential-slot"
+                v-model="editingNode.credentialSlot"
+                placeholder="如 vps1，留空则不参与凭证覆盖"
+              />
+            </div>
+          </div>
         </div>
 
         <!-- 节点链接 -->

@@ -221,7 +221,10 @@ watch(() => props.profile, (newProfile) => {
 
     // 确保 operators 数组存在
     profileCopy.operators = Array.isArray(profileCopy.operators) ? profileCopy.operators : [];
-    
+
+    // 确保 credentials 为对象（按凭证槽覆盖手动节点凭证）
+    profileCopy.credentials = (profileCopy.credentials && typeof profileCopy.credentials === 'object' && !Array.isArray(profileCopy.credentials)) ? profileCopy.credentials : {};
+
     localProfile.value = profileCopy;
   } else {
     localProfile.value = {
@@ -239,7 +242,8 @@ watch(() => props.profile, (newProfile) => {
         manualNodePrefix: '',
         prependGroupName: null
       },
-      operators: []
+      operators: [],
+      credentials: {}
     };
   }
 }, { deep: true, immediate: true });
