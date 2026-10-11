@@ -250,12 +250,12 @@ const protocolColorMap = {
           <div class="relative">
             <div class="flex flex-col">
               <label for="node-credential-slot" class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 ml-1">
-                凭证槽（可选）
+                {{ t('manualNodes.credentialSlotOptional') }}
               </label>
               <Input
                 id="node-credential-slot"
                 v-model="editingNode.credentialSlot"
-                placeholder="如 vps1，留空则不参与凭证覆盖"
+                :placeholder="t('manualNodes.credentialSlotPlaceholder')"
               />
             </div>
           </div>

@@ -408,15 +408,15 @@ function fillFromBaseline() {
       <div v-if="usedSlots.length" class="space-y-4">
         <div class="flex items-center justify-between gap-2 border-l-4 border-amber-500 pl-3">
           <div class="flex items-center gap-2">
-            <h3 class="text-sm font-bold text-gray-900 dark:text-white">凭证</h3>
-            <span class="text-[10px] text-gray-400">按槽覆盖手动节点凭证；留空回落模板基准</span>
+            <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ t('profileModal.credentialsTitle') }}</h3>
+            <span class="text-[10px] text-gray-400">{{ t('profileModal.credentialsDesc') }}</span>
           </div>
           <button
             type="button"
             @click="fillFromBaseline"
             class="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 focus:outline-hidden"
           >
-            用基准填充
+            {{ t('profileModal.credentialsFillBaseline') }}
           </button>
         </div>
 
@@ -428,10 +428,10 @@ function fillFromBaseline() {
               autocomplete="off"
               :value="localProfile.credentials?.[s.slot] || ''"
               @input="e => { ensureCred(); localProfile.credentials[s.slot] = e.target.value; }"
-              :placeholder="s.baseline ? '留空＝用模板基准凭证' : '留空＝用模板基准'"
+              :placeholder="s.baseline ? t('profileModal.credentialPlaceholderBaseline') : t('profileModal.credentialPlaceholder')"
               class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md sm:text-sm dark:text-white"
             />
-            <p v-if="!(localProfile.credentials?.[s.slot])" class="mt-1 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">未覆盖，将使用模板基准凭证</p>
+            <p v-if="!(localProfile.credentials?.[s.slot])" class="mt-1 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">{{ t('profileModal.credentialNotOverridden') }}</p>
           </div>
         </div>
       </div>

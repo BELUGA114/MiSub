@@ -104,6 +104,7 @@ D1 当前采用“行级 JSON”结构：
 - `url`：节点原始 URL，通常不是 `http(s)`。
 - `group`：手动节点分组。
 - `status`：导入/检查状态，批量导入时默认 `unchecked`。
+- `credentialSlot`：可选，凭证槽标签（如 `vps1`/`vps2`）。输出时若所属 Profile 的 `credentials` 覆盖了该槽，则按协议改写节点凭证（vless→uuid、trojan/hysteria(2)→password，均在 `@` 前 userinfo）；否则沿用 `url` 自带的基准凭证。无该字段＝普通节点，不参与凭证覆盖。
 
 运行时字段：
 
@@ -144,6 +145,7 @@ D1 当前采用“行级 JSON”结构：
 - `nodeTransformPresetId`：引用全局 `settings.nodeTransformPresets` 中的预设。
 - `prefixSettings`：订阅组级前缀配置，覆盖或继承全局默认。
 - `subconverter`：订阅组级转换器设置，覆盖或继承全局默认。
+- `credentials`：`{ 槽 → 凭证值 }` 映射，按凭证槽覆盖手动节点凭证。仅作用于挂了对应 `credentialSlot` 的手动节点，机场订阅不参与；某槽无值或整体缺省时该节点回落 `url` 自带的基准凭证，绝不输出空凭证。
 - `skipCertVerify` / `skipCertificateVerify` / `settings.builtinSkipCertVerify` / `settings.transformBackendScv`：公开预览和转换链路中兼容的跳过证书校验来源。
 
 Profile 输出链路：
