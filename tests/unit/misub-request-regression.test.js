@@ -494,10 +494,16 @@ describe('handleMisubRequest regression coverage', () => {
             url: 'vless://BASE-UUID@h.example.com:443?type=ws#N1',
             enabled: true,
             credentialSlot: 'vps1'
+        }, {
+            // 无凭证槽的手动节点：验证"无槽节点行为完全不变"（向后兼容）
+            id: 'n2',
+            name: 'N2',
+            url: 'vless://PLAIN-UUID@h2.example.com:443?type=ws#N2',
+            enabled: true
         }];
         const profiles = [
-            { id: 'pa', name: 'PA', enabled: true, subscriptions: [], manualNodes: ['n1'] },
-            { id: 'pb', name: 'PB', enabled: true, subscriptions: [], manualNodes: ['n1'], credentials: { vps1: 'UUID-B' } }
+            { id: 'pa', name: 'PA', enabled: true, subscriptions: [], manualNodes: ['n1', 'n2'] },
+            { id: 'pb', name: 'PB', enabled: true, subscriptions: [], manualNodes: ['n1', 'n2'], credentials: { vps1: 'UUID-B' } }
         ];
         const adapter = createStorageAdapter({
             settings: { mytoken: 'stable-token', profileToken: 'profiles', enableFlagEmoji: false, enableTrafficNode: false, enableAccessLog: false },
@@ -535,6 +541,9 @@ describe('handleMisubRequest regression coverage', () => {
             expect(outputB).not.toContain('BASE-UUID');
             // profileA 未覆盖 → 回落基准
             expect(outputA).toContain('vless://BASE-UUID@h.example.com:443');
+            // 无凭证槽的节点在两个 Profile 下都原样不变（向后兼容）
+            expect(outputA).toContain('vless://PLAIN-UUID@h2.example.com:443');
+            expect(outputB).toContain('vless://PLAIN-UUID@h2.example.com:443');
         } finally {
             logSpy.mockRestore();
         }
