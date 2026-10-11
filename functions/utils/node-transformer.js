@@ -411,6 +411,47 @@ export function setNodeHostPort(url, protocol, patch = {}) {
     }
 }
 
+// 凭证在 @ 前的 userinfo（单字段）的协议——本期支持的注入范围。
+// vmess(凭证在 base64 JSON)、ss/ssr(内嵌 base64)、tuic(uuid:password 复合) 暂不处理，原样返回。
+const CREDENTIAL_USERINFO_PROTOCOLS = new Set(['vless', 'trojan', 'hysteria', 'hysteria2', 'hy2']);
+
+/**
+ * 按协议把新凭证写回节点 URL（凭证在 @ 前 userinfo）。
+ * 仅处理 vless/trojan/hysteria/hysteria2；其余协议、空凭证、异常或无 userinfo 结构一律返回原 url，绝不产坏节点。
+ */
+export function setNodeCredential(url, protocol, cred) {
+    const text = String(url || '');
+    const credential = (cred === undefined || cred === null) ? '' : String(cred).trim();
+    if (!text || !credential) return url;
+    const proto = String(protocol || text.split('://')[0] || '').toLowerCase();
+    if (!CREDENTIAL_USERINFO_PROTOCOLS.has(proto)) return url;
+    try {
+        const parts = splitUrlParts(text);
+        if (!parts) return url;
+        const atIndex = parts.authority.lastIndexOf('@');
+        if (atIndex === -1) return url; // 无 userinfo，结构异常，保守返回
+        const hostport = parts.authority.slice(atIndex + 1);
+        // uuid 本就只含 [0-9a-f-]，encodeURIComponent 对其无副作用；password 需编码，统一处理。
+        const newAuthority = `${encodeURIComponent(credential)}@${hostport}`;
+        return `${parts.scheme}${newAuthority}${parts.query}${parts.hash}`;
+    } catch (e) {
+        console.warn('[NodeUtils] setNodeCredential failed:', e);
+        return url;
+    }
+}
+
+/**
+ * 按"凭证槽"从 Profile 的 credentials 映射取值注入；无槽/无值/映射为空则原样返回（回落基准凭证）。
+ */
+export function applyCredentialOverride(url, credentialSlot, credentialsMap = {}) {
+    const slot = typeof credentialSlot === 'string' ? credentialSlot.trim() : '';
+    if (!slot) return url;
+    const cred = credentialsMap && typeof credentialsMap === 'object' ? credentialsMap[slot] : '';
+    if (cred === undefined || cred === null || String(cred).trim() === '') return url;
+    const proto = (String(url || '').split('://')[0] || '').toLowerCase();
+    return setNodeCredential(url, proto, cred);
+}
+
 export function applyRegexRename(name, rules, record = null) {
     let result = String(name || '');
     if (!Array.isArray(rules)) return result;

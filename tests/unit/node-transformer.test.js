@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyNodeTransformPipeline, setNodeHostPort } from '../../functions/utils/node-transformer.js';
+import { applyNodeTransformPipeline, setNodeHostPort, setNodeCredential, applyCredentialOverride } from '../../functions/utils/node-transformer.js';
 import { parseNodeInfo } from '../../functions/modules/utils/geo-utils.js';
 
 describe('applyNodeTransformPipeline filters', () => {
@@ -123,5 +123,39 @@ describe('setNodeHostPort 补充场景', () => {
   });
   it('仅改 server，端口原样', () => {
     expect(setNodeHostPort('trojan://p@old.com:443?sni=a#x', 'trojan', { server: 'new.com' })).toBe('trojan://p@new.com:443?sni=a#x');
+  });
+});
+
+describe('setNodeCredential 按协议改写 @ 前凭证', () => {
+  const uuidOf = (url) => url.split('://')[1].split('@')[0];
+  it('vless 覆盖 uuid，query 与 #备注 原样', () => {
+    const out = setNodeCredential('vless://OLD-UUID@h.example.com:443?type=ws&security=tls#HK-01', 'vless', 'NEW-UUID');
+    expect(uuidOf(out)).toBe('NEW-UUID');
+    expect(out).toContain('type=ws&security=tls');
+    expect(out).toContain('#HK-01');
+  });
+  it('trojan 覆盖 password', () => {
+    expect(uuidOf(setNodeCredential('trojan://oldpass@h:443?sni=a#x', 'trojan', 'newpass'))).toBe('newpass');
+  });
+  it('hysteria2 覆盖 password', () => {
+    expect(uuidOf(setNodeCredential('hysteria2://old@h:443?insecure=1#x', 'hysteria2', 'np'))).toBe('np');
+  });
+  it('空凭证 / 未知协议 / 无 @ 结构 → 原样返回', () => {
+    const u = 'vless://OLD@h:443#x';
+    expect(setNodeCredential(u, 'vless', '')).toBe(u);
+    expect(setNodeCredential('ss://base64body@h:443#x', 'ss', 'np')).toBe('ss://base64body@h:443#x');
+    expect(setNodeCredential('vless://nohostonly', 'vless', 'np')).toBe('vless://nohostonly');
+  });
+});
+
+describe('applyCredentialOverride 按槽取值注入', () => {
+  const url = 'vless://BASE@h:443#x';
+  it('有槽且 map 有值 → 覆盖', () => {
+    expect(applyCredentialOverride(url, 'vps1', { vps1: 'U1' }).split('@')[0]).toBe('vless://U1');
+  });
+  it('无槽 / 槽无值 / map 为空 → 原样（回落基准）', () => {
+    expect(applyCredentialOverride(url, '', { vps1: 'U1' })).toBe(url);
+    expect(applyCredentialOverride(url, 'vps2', { vps1: 'U1' })).toBe(url);
+    expect(applyCredentialOverride(url, 'vps1', {})).toBe(url);
   });
 });
