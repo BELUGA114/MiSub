@@ -189,6 +189,39 @@ describe('subscription protective node cache', () => {
         expect(result.trim()).toBe('');
     });
 
+    it('enableNodeCache 开启时，异常缩水回退到机场旧缓存', async () => {
+        const cacheKey = buildSubscriptionNodeCacheKey({ id: 'sub-a', url: 'https://example.com/sub' });
+        const cachedNodes = Array.from({ length: 156 }, (_, index) =>
+            `trojan://cached${index}@node${index}.example.com:443#Cached-${index}`
+        );
+        const storage = createMemoryStorage({
+            [cacheKey]: {
+                nodes: cachedNodes,
+                nodeCount: cachedNodes.length,
+                updatedAt: '2026-01-01T00:00:00.000Z'
+            }
+        });
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(
+            'vless://11111111-1111-1111-1111-111111111111@example.com:443#11111111-1111-1111-1111-111111111111',
+            { status: 200 }
+        )));
+
+        const result = await generateCombinedNodeList(
+            { storage },
+            { enableAccessLog: false, enableFlagEmoji: false },
+            'ClashMeta',
+            [{ id: 'sub-a', name: 'Airport', url: 'https://example.com/sub', enabled: true, enableNodeCache: true }],
+            '',
+            { enableSubscriptions: false },
+            false
+        );
+
+        const cache = await storage.get(cacheKey);
+        expect(result.trim().split('\n')).toHaveLength(cachedNodes.length);
+        expect(cache.nodes).toEqual(cachedNodes);
+        expect(cache.nodeCount).toBe(cachedNodes.length);
+    });
+
     it('clears stored runtime info when protective node cache is disabled and external fetch fails', async () => {
         const sub = {
             id: 'sub-a',

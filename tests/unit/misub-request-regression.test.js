@@ -428,4 +428,62 @@ describe('handleMisubRequest regression coverage', () => {
             logSpy.mockRestore();
         }
     });
+
+    it('serves the preserved aggregate cache when a forced refresh collapses from many nodes to one', async () => {
+        const subscriptions = [{
+            id: 'sub-a',
+            name: 'Airport A',
+            url: 'https://airport.example/sub',
+            enabled: true,
+            enableNodeCache: false,
+            userInfo: { upload: 1, download: 2, total: 1000, expire: 2000 }
+        }];
+        const adapter = createStorageAdapter({
+            settings: { mytoken: 'stable-token', enableFlagEmoji: false, enableTrafficNode: true },
+            subscriptions
+        });
+        const healthyNodes = Array.from({ length: 156 }, (_, index) =>
+            `trojan://cached${index}@node${index}.example.com:443#Cached-${index}`
+        ).join('\n') + '\n';
+        // 本 fork 的 generateCacheKey 会按 emoji 决策追加 variant 后缀（上游无此后缀）。
+        // enableFlagEmoji:false → 不保留 emoji → variant 为 emoji0。
+        const cacheKey = 'node_cache_token_stable-token__emoji0';
+        adapter.store.set(cacheKey, {
+            nodes: healthyNodes,
+            timestamp: Date.now(),
+            nodeCount: 156,
+            sources: ['Airport A']
+        });
+        createAdapter.mockReturnValue(adapter);
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(
+            'vless://11111111-1111-1111-1111-111111111111@example.com:443#11111111-1111-1111-1111-111111111111',
+            { status: 200 }
+        )));
+
+        const logSpy = silenceExpectedRequestLogs();
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        try {
+            const { handleMisubRequest } = await import('../../functions/modules/subscription/main-handler.js');
+            const response = await handleMisubRequest({
+                request: new Request('https://misub.example/stable-token?target=nodes&refresh=1', {
+                    headers: { 'User-Agent': 'ClashMeta' }
+                }),
+                env: {},
+                waitUntil: vi.fn()
+            });
+            const text = await response.text();
+
+            expect(response.status).toBe(200);
+            expect(text.split('\n').filter(Boolean)).toHaveLength(156);
+            expect(text).toContain('trojan://cached0@node0.example.com:443#Cached-0');
+            expect(text).not.toContain('11111111-1111-1111-1111-111111111111');
+            expect(adapter.store.get(cacheKey).nodeCount).toBe(156);
+            expect(warnSpy).toHaveBeenCalledWith(
+                `[Cache] Refusing to overwrite cache ${cacheKey} after suspicious node-count drop (156 -> 2)`
+            );
+        } finally {
+            logSpy.mockRestore();
+            warnSpy.mockRestore();
+        }
+    });
 });

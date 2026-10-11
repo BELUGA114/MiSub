@@ -4,7 +4,7 @@ import { generateCombinedNodeList } from '../../services/subscription-service.js
 import { sendEnhancedTgNotification, tgEscape } from '../notifications.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS as defaultSettings, DEFAULT_SUBCONVERTER_BACKEND } from '../config.js';
 import { createDisguiseResponse } from '../disguise-page.js';
-import { generateCacheKey, setCache } from '../../services/node-cache-service.js';
+import { generateCacheKey, setCache, isSuspiciousNodeCountDrop } from '../../services/node-cache-service.js';
 import { resolveEffectiveNodeTransform, applyUrlEmojiOverride, resolveKeepEmoji } from '../../utils/emoji-decision.js';
 import { resolveRequestContext } from './request-context.js';
 import { resolveNodeListWithCache } from './cache-manager.js';
@@ -722,7 +722,16 @@ export async function handleMisubRequest(context) {
         // 如果没有 HTTP 订阅源（纯手动节点/过期订阅组），则始终写入缓存
         const stats = context.generationStats;
         if (!stats?.sourceCount || stats.upstreamSuccessCount > 0) {
-            await setCache(storageAdapter, cacheKey, freshNodes, sourceNames);
+            const cacheSaved = await setCache(storageAdapter, cacheKey, freshNodes, sourceNames);
+            const freshNodeCount = freshNodes.split('\n').filter(line => line.trim()).length;
+            const existingCache = cacheSaved ? null : await storageAdapter.get(cacheKey);
+            const existingNodeCount = existingCache?.nodeCount || String(existingCache?.nodes || '').split('\n').filter(line => line.trim()).length;
+            if (!cacheSaved && isSuspiciousNodeCountDrop(existingNodeCount, freshNodeCount)) {
+                if (existingCache?.nodes && String(existingCache.nodes).trim()) {
+                    console.warn('[MiSub Cache] Serving preserved aggregate cache after rejecting a suspicious refresh');
+                    return existingCache.nodes;
+                }
+            }
         }
         return freshNodes;
     };

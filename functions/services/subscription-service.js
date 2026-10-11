@@ -11,6 +11,7 @@ import { prependNodeName, addFlagEmoji, removeFlagEmoji, fixNodeUrlEncoding, san
 import { runOperatorChain } from '../utils/operator-runner.js';
 import { createTimeoutFetch } from '../modules/utils.js';
 import { assertPublicNetworkUrl } from '../modules/security-utils.js';
+import { isSuspiciousNodeCountDrop } from './node-cache-service.js';
 import { resolveKeepEmoji } from '../utils/emoji-decision.js';
 
 /**
@@ -479,6 +480,13 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
             const realNodes = validNodes.filter(isRealProxyNode);
             if (cacheEnabled && realNodes.length === 0) {
                 return (await readCachedNodes()).join('\n');
+            }
+            if (cacheEnabled) {
+                const cachedNodes = await readCachedNodes();
+                if (isSuspiciousNodeCountDrop(cachedNodes.length, realNodes.length)) {
+                    console.warn(`[SubscriptionCache] Refusing suspicious node-count drop for ${sub.id || sub.url} (${cachedNodes.length} -> ${realNodes.length})`);
+                    return cachedNodes.join('\n');
+                }
             }
             if (!cacheEnabled && realNodes.length === 0) {
                 recordEmptyRuntimeInfo();
