@@ -189,6 +189,14 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
         }).filter(Boolean);
 
         let publicProxies = stripInternalProxyFields(proxies);
+        // Stash 读取 hysteria2 的 auth 字段；Clash/Mihomo 读 password 并忽略 auth，双写互不影响。
+        publicProxies = publicProxies.map(p => {
+            const t = (p.type || '').toLowerCase();
+            if ((t === 'hysteria2' || t === 'hy2') && p.password !== undefined && p.auth === undefined) {
+                return { ...p, auth: p.password };
+            }
+            return p;
+        });
         if (levelKey === 'RELAY' && enableMihomoSyntax) {
             const relayConfig = applyMihomoRelayDialerProxy(proxies, publicProxies, proxyGroups);
             publicProxies = relayConfig.proxies;
@@ -236,6 +244,9 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
         });
 
         // 最终清理，确保输出没有控制字符
+        if (/stash/i.test(userAgent || '') && options.managedConfigUrl) {
+            yamlStr = `#SUBSCRIBED ${options.managedConfigUrl}\n${yamlStr}`;
+        }
         return cleanControlChars(yamlStr);
     } catch (e) {
         console.error('[BuiltinClash] Generation failed:', e);
