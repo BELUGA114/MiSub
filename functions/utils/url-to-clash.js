@@ -400,9 +400,11 @@ function parseTrojanUrl(url) {
             if (params.get('pbk')) realityOpts['public-key'] = params.get('pbk');
             if (params.get('sid')) realityOpts['short-id'] = params.get('sid');
             if (params.get('spx')) realityOpts['spider-x'] = params.get('spx');
-            const sxm = params.get('mlkem') ?? params.get('support-x25519mlkem768') ?? params.get('sxm');
-            realityOpts['support-x25519mlkem768'] = !(sxm === '0' || sxm === 'false');
-            if (Object.keys(realityOpts).length > 0) proxy['reality-opts'] = realityOpts;
+            if (Object.keys(realityOpts).length > 0) {
+                const sxm = params.get('mlkem') ?? params.get('support-x25519mlkem768') ?? params.get('sxm');
+                realityOpts['support-x25519mlkem768'] = !(sxm === '0' || sxm === 'false');
+                proxy['reality-opts'] = realityOpts;
+            }
         }
 
         // [重要] dialer-proxy 链式代理

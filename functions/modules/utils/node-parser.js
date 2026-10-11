@@ -135,6 +135,7 @@ function parseSurgeOrQxLine(line) {
                         proxy['reality-opts'] = proxy['reality-opts'] || {};
                         proxy['reality-opts']['short-id'] = v;
                     }
+                    // Surge/QX 格式无 default-ON 约定，仅在显式键存在时按值设置（与 URL 解析端的默认开启刻意不同）。
                     if (k === 'reality-support-x25519mlkem768' || k === 'support-x25519mlkem768') {
                         proxy['reality-opts'] = proxy['reality-opts'] || {};
                         proxy['reality-opts']['support-x25519mlkem768'] = v === 'true' || v === '1';
