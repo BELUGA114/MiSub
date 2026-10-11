@@ -208,6 +208,12 @@ function clashProxyToLoonResult(proxy) {
             const reserved = Array.isArray(proxy.reserved) ? proxy.reserved.join('/') : proxy.reserved;
             parts.push(`client-id=${reserved}`);
         }
+    } else if (type === 'anytls') {
+        parts.push(`${name} = anytls`);
+        parts.push(server);
+        parts.push(String(port));
+        parts.push(loonQuote(proxy.password || ''));
+        appendTlsParams(parts, proxy);
     } else if (type === 'snell') {
         parts.push(`${name} = snell`);
         parts.push(server);
