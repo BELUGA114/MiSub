@@ -667,6 +667,8 @@ export async function handleMisubRequest(context) {
             operators: Array.isArray(activeProfile?.operators) ? [...activeProfile.operators] : [],
             exclude: urlExclude || activeProfile?.exclude,
             include: urlInclude || activeProfile?.include,
+            // 凭证槽：透传 Profile 的 credentials（槽→值）供手动节点循环按槽覆盖
+            credentials: activeProfile?.credentials || {},
             // [Issue #345] 透传 emoji 开关到内置生成器
             addFlagEmoji: effectiveNodeTransform.addFlagEmoji
         };

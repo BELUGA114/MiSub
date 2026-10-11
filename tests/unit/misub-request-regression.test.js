@@ -486,4 +486,57 @@ describe('handleMisubRequest regression coverage', () => {
             warnSpy.mockRestore();
         }
     });
+
+    it('overrides manual node credentials per Profile credential slot in subscription output', async () => {
+        const subscriptions = [{
+            id: 'n1',
+            name: 'N1',
+            url: 'vless://BASE-UUID@h.example.com:443?type=ws#N1',
+            enabled: true,
+            credentialSlot: 'vps1'
+        }];
+        const profiles = [
+            { id: 'pa', name: 'PA', enabled: true, subscriptions: [], manualNodes: ['n1'] },
+            { id: 'pb', name: 'PB', enabled: true, subscriptions: [], manualNodes: ['n1'], credentials: { vps1: 'UUID-B' } }
+        ];
+        const adapter = createStorageAdapter({
+            settings: { mytoken: 'stable-token', profileToken: 'profiles', enableFlagEmoji: false, enableTrafficNode: false, enableAccessLog: false },
+            subscriptions,
+            profiles
+        });
+        createAdapter.mockReturnValue(adapter);
+
+        const logSpy = silenceExpectedRequestLogs();
+        try {
+            const { handleMisubRequest } = await import('../../functions/modules/subscription/main-handler.js');
+
+            const responseA = await handleMisubRequest({
+                request: new Request('https://misub.example/profiles/pa?target=nodes&refresh=1', {
+                    headers: { 'User-Agent': 'ClashMeta' }
+                }),
+                env: {},
+                waitUntil: vi.fn()
+            });
+            const outputA = await responseA.text();
+
+            const responseB = await handleMisubRequest({
+                request: new Request('https://misub.example/profiles/pb?target=nodes&refresh=1', {
+                    headers: { 'User-Agent': 'ClashMeta' }
+                }),
+                env: {},
+                waitUntil: vi.fn()
+            });
+            const outputB = await responseB.text();
+
+            expect(responseA.status).toBe(200);
+            expect(responseB.status).toBe(200);
+            // profileB 输出里该节点 uuid 被覆盖为 UUID-B
+            expect(outputB).toContain('vless://UUID-B@h.example.com:443');
+            expect(outputB).not.toContain('BASE-UUID');
+            // profileA 未覆盖 → 回落基准
+            expect(outputA).toContain('vless://BASE-UUID@h.example.com:443');
+        } finally {
+            logSpy.mockRestore();
+        }
+    });
 });

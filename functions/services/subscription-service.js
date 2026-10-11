@@ -8,6 +8,7 @@ import { parseNodeInfo } from '../modules/utils/geo-utils.js';
 import { getProcessedUserAgent } from '../utils/format-utils.js';
 import { buildFetchProxyUrl } from '../utils/fetch-proxy-utils.js';
 import { prependNodeName, addFlagEmoji, removeFlagEmoji, fixNodeUrlEncoding, sanitizeNodeForYaml } from '../utils/node-utils.js';
+import { applyCredentialOverride } from '../utils/node-transformer.js';
 import { runOperatorChain } from '../utils/operator-runner.js';
 import { createTimeoutFetch } from '../modules/utils.js';
 import { assertPublicNetworkUrl } from '../modules/security-utils.js';
@@ -321,6 +322,9 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
     // 手动节点前缀文本
     const manualNodePrefix = profilePrefixSettings?.manualNodePrefix ?? '\u624b\u52a8\u8282\u70b9';
 
+    // 凭证槽：Profile 透传的 credentials（槽→值），用于按槽覆盖手动节点凭证
+    const profileCredentials = profilePrefixSettings?.credentials || {};
+
     // [重要] 当智能重命名模板启用时，跳过前缀添加，因为智能重命名会完全覆盖节点名称
     // 用户可以在模板中使用 {name} 变量来保留原始信息
     const skipPrefixDueToRenaming = nodeTransformConfig?.enabled && nodeTransformConfig?.rename?.template?.enabled;
@@ -367,6 +371,8 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
             if (!rawUrl) continue;
             
             let processedUrl = fixNodeUrlEncoding(rawUrl, { plusAsSpace: Boolean(sub?.plusAsSpace) });
+            // 凭证槽：若该手动节点挂了槽且 Profile 覆盖了该槽，则按协议改写凭证；否则保持基准
+            processedUrl = applyCredentialOverride(processedUrl, sub?.credentialSlot, profileCredentials);
             const customNodeName = typeof sub.name === 'string' ? sub.name.trim() : '';
             if (customNodeName) processedUrl = applyManualNodeName(processedUrl, customNodeName);
             
