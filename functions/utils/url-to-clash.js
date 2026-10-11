@@ -745,7 +745,13 @@ function parseHysteria2Url(url) {
             }
         }
 
-        if (params.get('ports')) proxy.ports = params.get('ports');
+        const portsParam = params.get('ports') || params.get('mport');
+        if (portsParam) proxy.ports = portsParam;
+        const hopInterval = params.get('hop-interval') || params.get('hop_interval');
+        if (hopInterval) {
+            const n = parseInt(hopInterval, 10);
+            proxy['hop-interval'] = Number.isFinite(n) ? n : hopInterval;
+        }
         if (params.get('up')) proxy.up = params.get('up');
         if (params.get('down')) proxy.down = params.get('down');
         const fastOpen = params.get('fast_open') || params.get('fast-open');
