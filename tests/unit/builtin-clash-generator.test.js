@@ -46,12 +46,12 @@ describe('Clash 内置生成器', () => {
         expect(proxiesOnly.proxies[0]).not.toHaveProperty('metadata');
     });
 
-    it('REALITY 节点未声明 mlkem 参数时不应输出 support-x25519mlkem768', () => {
+    it('REALITY 节点未声明 mlkem 参数时默认开启 support-x25519mlkem768', () => {
         const node = 'vless://uuid-reality@reality.example.com:443?security=reality&type=tcp&sni=addons.mozilla.org&pbk=testpublickey&sid=abcd#Reality-Plain';
 
         const proxy = yaml.load(generateProxiesOnly(node)).proxies[0];
 
-        expect(proxy['reality-opts']).toEqual({ 'public-key': 'testpublickey', 'short-id': 'abcd' });
+        expect(proxy['reality-opts']).toEqual({ 'public-key': 'testpublickey', 'short-id': 'abcd', 'support-x25519mlkem768': true });
     });
 
     it('REALITY 节点声明 mlkem=1 时应输出 support-x25519mlkem768', () => {
@@ -71,12 +71,12 @@ describe('Clash 内置生成器', () => {
         expect(proxy['reality-opts']['support-x25519mlkem768']).toBe(true);
     });
 
-    it('mlkem 参数取非真值时不应输出 support-x25519mlkem768', () => {
+    it('mlkem=0 显式禁用时 support-x25519mlkem768 存为 false 以保证往返可还原', () => {
         const node = 'vless://uuid-reality@reality.example.com:443?security=reality&type=tcp&pbk=testpublickey&mlkem=0#Reality-Off';
 
         const proxy = yaml.load(generateProxiesOnly(node)).proxies[0];
 
-        expect(proxy['reality-opts']).not.toHaveProperty('support-x25519mlkem768');
+        expect(proxy['reality-opts']['support-x25519mlkem768']).toBe(false);
     });
 
     it('应将 TUIC URL 的 congestion_control 转为 Clash/Mihomo 兼容字段', () => {
