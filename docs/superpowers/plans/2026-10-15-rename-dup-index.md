@@ -382,6 +382,8 @@ import { createI18n } from '../../src/i18n/index.js';
 
 // 与 RenameEditor 的按钮文案一一对应，用于把「索引分组」那一行的按钮筛出来
 const SCOPE_LABELS = ['全局', '按地区', '按协议', '按地区+协议', '按名称', '同名', '同名+协议'];
+// operators.statusOn / statusOff 的中文文案
+const TOGGLE_LABELS = ['已开启', '关闭'];
 
 const mountEditor = (params) => mount(RenameEditor, {
   props: { modelValue: params },
@@ -397,10 +399,10 @@ const lastEmittedTemplate = (wrapper) => {
   return events[events.length - 1][0].template;
 };
 
-// “仅重名时编号”开关按 DOM 顺序是模板区最后一个「开/关」按钮：
-// 正则区开关 -> 模板重写开关 -> 本开关。RenamEditor 的模板区渲染顺序固定，故取末位即可。
+// “仅重名时编号”开关按 DOM 顺序是模板区最后一个开/关按钮：
+// 正则区开关 -> 模板重写开关 -> 本开关。模板区渲染顺序固定，故取末位即可。
 const dupToggle = (wrapper) => {
-  const toggles = wrapper.findAll('button').filter(b => ['开', '关'].includes(b.text()));
+  const toggles = wrapper.findAll('button').filter(b => TOGGLE_LABELS.includes(b.text()));
   return toggles[toggles.length - 1];
 };
 

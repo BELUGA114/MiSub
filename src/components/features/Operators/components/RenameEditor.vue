@@ -72,7 +72,30 @@ const indexScopeOptions = [
   { value: 'protocol', labelKey: 'operators.indexScopeProtocol' },
   { value: 'regionProtocol', labelKey: 'operators.indexScopeRegionProtocol' },
   { value: 'name', labelKey: 'operators.indexScopeName' },
+  { value: 'nameExact', labelKey: 'operators.indexScopeNameExact' },
+  { value: 'nameProtocolExact', labelKey: 'operators.indexScopeNameProtocolExact' },
 ];
+
+// 仅重名时编号只在“同名”维度上有定义：全局/地区/协议 等分组下没有“重名”一说
+const dupOnlyScopeValues = ['nameExact', 'nameProtocolExact'];
+
+const onlyWhenDuplicated = computed(() => props.modelValue.template?.onlyWhenDuplicated === true);
+
+const visibleIndexScopeOptions = computed(() => onlyWhenDuplicated.value
+  ? indexScopeOptions.filter(opt => dupOnlyScopeValues.includes(opt.value))
+  : indexScopeOptions);
+
+// 开关打开时把落在同名维度之外的 scope 写回 nameExact：若只做界面回落而保存值仍是 region，
+// 会出现“界面高亮同名、后端按地区分组”的错配。关闭开关不回退该值，它在完整列表里仍是合法选项。
+const toggleOnlyWhenDuplicated = () => {
+  const next = !onlyWhenDuplicated.value;
+  const currentScope = props.modelValue.template?.indexScope || 'region';
+  if (next && !dupOnlyScopeValues.includes(currentScope)) {
+    updateTemplate({ onlyWhenDuplicated: true, indexScope: 'nameExact' });
+    return;
+  }
+  updateTemplate({ onlyWhenDuplicated: next });
+};
 
 const applyPresetRegex = (rule) => {
   const current = { ...(props.modelValue.regex || { enabled: true, rules: [] }) };
@@ -198,9 +221,20 @@ const applyPresetRegex = (rule) => {
             />
           </div>
 
-          <div class="flex flex-wrap items-center gap-1.5 mt-3 pt-3 border-t border-teal-100/20">
+          <div class="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-teal-100/20">
+            <span class="text-[10px] text-teal-600/60 font-medium mr-1">{{ t('operators.onlyWhenDuplicated') }}</span>
+            <button
+              @click="toggleOnlyWhenDuplicated"
+              :class="['text-[10px] font-medium transition-colors', onlyWhenDuplicated ? 'text-teal-600' : 'text-gray-300']"
+            >
+              {{ statusLabel(onlyWhenDuplicated) }}
+            </button>
+          </div>
+          <p class="mt-1 text-[10px] text-gray-400">{{ t('operators.onlyWhenDuplicatedHint') }}</p>
+
+          <div v-if="visibleIndexScopeOptions.length" class="flex flex-wrap items-center gap-1.5 mt-3 pt-3 border-t border-teal-100/20">
             <span class="text-[10px] text-teal-600/60 font-medium mr-1">{{ t('operators.indexScope') }}</span>
-            <button v-for="opt in indexScopeOptions" :key="opt.value"
+            <button v-for="opt in visibleIndexScopeOptions" :key="opt.value"
               @click="updateTemplate({ indexScope: opt.value })"
               :class="[
                 'text-[9px] px-2 py-0.5 rounded border transition-colors',
