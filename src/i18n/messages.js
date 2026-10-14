@@ -1065,6 +1065,10 @@ export const messages = {
       indexScopeProtocol: '按协议',
       indexScopeRegionProtocol: '按地区+协议',
       indexScopeName: '按名称',
+      indexScopeNameExact: '同名',
+      indexScopeNameProtocolExact: '同名+协议',
+      onlyWhenDuplicated: '仅重名时编号',
+      onlyWhenDuplicatedHint: '开启后按「同名」维度分组，组内节点数 ≥ 2 才套用模板编号；只有 1 个的节点保持原订阅中的名字。',
       regionLabel: '{region}'
     },
     systemSettings: {
@@ -2281,6 +2285,10 @@ export const messages = {
       indexScopeProtocol: 'By protocol',
       indexScopeRegionProtocol: 'By region + protocol',
       indexScopeName: 'By name',
+      indexScopeNameExact: 'Same name',
+      indexScopeNameProtocolExact: 'Same name + protocol',
+      onlyWhenDuplicated: 'Number duplicates only',
+      onlyWhenDuplicatedHint: 'Groups by name; the template is applied only when 2 or more nodes share the name. Unique nodes keep their original name.',
       regionLabel: '{region}'
     },
     systemSettings: {
