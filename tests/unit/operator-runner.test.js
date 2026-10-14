@@ -481,6 +481,82 @@ describe('rename indexScope=nameExact 精确同名分组', () => {
   });
 });
 
+describe('rename onlyWhenDuplicated 仅重名时编号', () => {
+  const mk = (host, name) => `trojan://p@${host}:443#${encodeURIComponent(name)}`;
+  const names = out => out.map(u => decodeURIComponent(u.slice(u.lastIndexOf('#') + 1)));
+
+  it('nameExact：分组 ≥2 编号，唯一分组保持原名', async () => {
+    const urls = [
+      mk('a.example.com', '香港01'), mk('b.example.com', '香港01'), mk('c.example.com', '香港01'),
+      mk('d.example.com', '日本01')
+    ];
+    const out = await runOperatorChain(urls, [{
+      type: 'rename',
+      params: {
+        template: { enabled: true, template: '{name}-{index}', indexScope: 'nameExact', onlyWhenDuplicated: true }
+      }
+    }]);
+    expect(names(out)).toEqual(['香港01-1', '香港01-2', '香港01-3', '日本01']);
+  });
+
+  it('nameProtocolExact：同名不同协议各自成组，组内唯一的不编号', async () => {
+    const urls = [
+      'trojan://p@a.example.com:443#HK',
+      'trojan://p@b.example.com:443#HK',
+      'vless://00000000-0000-0000-0000-000000000001@c.example.com:443?type=tcp#HK',
+      'trojan://p@d.example.com:443#JP'
+    ];
+    const out = await runOperatorChain(urls, [{
+      type: 'rename',
+      params: {
+        template: { enabled: true, template: '{name}-{index}', indexScope: 'nameProtocolExact', onlyWhenDuplicated: true }
+      }
+    }]);
+    expect(names(out)).toEqual(['HK-1', 'HK-2', 'HK', 'JP']);
+  });
+
+  it('唯一分组是整条模板跳过，而非把 {index} 渲染成空串', async () => {
+    const urls = [
+      mk('a.example.com', '🇯🇵日本01'), mk('b.example.com', '🇯🇵日本01'),
+      mk('c.example.com', '🇭🇰香港01')
+    ];
+    const out = await runOperatorChain(urls, [{
+      type: 'rename',
+      params: {
+        template: {
+          enabled: true,
+          template: '{emoji}{region}-{protocol}-{index}',
+          indexScope: 'nameExact',
+          onlyWhenDuplicated: true
+        }
+      }
+    }]);
+    expect(names(out)).toEqual(['🇯🇵日本-trojan-1', '🇯🇵日本-trojan-2', '🇭🇰香港01']);
+  });
+
+  it('开关关闭时行为不变', async () => {
+    const urls = [mk('a.example.com', '香港'), mk('b.example.com', '香港'), mk('c.example.com', '日本')];
+    const out = await runOperatorChain(urls, [{
+      type: 'rename',
+      params: { template: { enabled: true, template: '{name}-{index}', indexScope: 'name', onlyWhenDuplicated: false } }
+    }]);
+    expect(names(out)).toEqual(['香港-1', '香港-2', '日本-1']);
+  });
+
+  it('与起始序号 offset 协同，且唯一分组不受 offset 影响', async () => {
+    const urls = [
+      mk('a.example.com', '香港01'), mk('b.example.com', '香港01'), mk('c.example.com', '日本01')
+    ];
+    const out = await runOperatorChain(urls, [{
+      type: 'rename',
+      params: {
+        template: { enabled: true, template: '{name}-{index}', indexScope: 'nameExact', onlyWhenDuplicated: true, offset: 10 }
+      }
+    }]);
+    expect(names(out)).toEqual(['香港01-10', '香港01-11', '日本01']);
+  });
+});
+
 describe('opScript set-field 同时改 name 与 server/port（vmess 组合）', () => {
   const vmess = 'vmess://eyJ2IjoiMiIsInBzIjoi8J+HuvCfh7ggVVMgTm9kZSAwMSIsImFkZCI6InVzMS5leGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImFpZCI6MCwibmV0IjoidGNwIiwidHlwZSI6Im5vbmUiLCJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6InRscyJ9';
   it('name 与 port 同时生效，其余字段保留', async () => {

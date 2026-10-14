@@ -146,12 +146,32 @@ function opRename(nodes, params, enableEmoji = true) {
     if (template?.enabled && template.template) {
         const counters = new Map();
         const scope = template.indexScope || template.scope || 'region'; // 默认按地区分组计数，符合用户直觉
+        const skipUnique = template.onlyWhenDuplicated === true;
+
+        // 仅重名时编号：先扫描各分组大小（只读不改）。预扫描与主循环用同样的富化方式，
+        // 保证两次算出的分组键逐字一致。
+        let groupSizes = null;
+        if (skipUnique) {
+            groupSizes = new Map();
+            for (const r of result) {
+                const enriched = NodeUtils.ensureRegionInfo(r, enableEmoji);
+                const key = nodeGroupKey(r, enriched, scope);
+                groupSizes.set(key, (groupSizes.get(key) || 0) + 1);
+            }
+        }
 
         result = result.map((r, index) => {
             const enriched = NodeUtils.ensureRegionInfo(r, enableEmoji);
 
-            // 确定索引分组键（region/protocol/regionProtocol/name/global）
+            // 确定索引分组键（region/protocol/regionProtocol/name/nameExact/nameProtocolExact/global）
             const groupKey = nodeGroupKey(r, enriched, scope);
+
+            // 组内只有本节点时无需区分：整条模板都不套用，保持进入本算子时的原名。
+            // 跳过发生在计数之前，被跳过的分组大小恒为 1、其本身也只会被计入一次，
+            // 故不影响任何分组的计数。
+            if (groupSizes && (groupSizes.get(groupKey) || 0) < 2) {
+                return r;
+            }
 
             const groupIndex = (counters.get(groupKey) || 0) + 1;
             counters.set(groupKey, groupIndex);

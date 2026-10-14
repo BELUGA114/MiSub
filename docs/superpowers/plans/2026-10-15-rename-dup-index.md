@@ -186,7 +186,7 @@ describe('rename onlyWhenDuplicated 仅重名时编号', () => {
         template: { enabled: true, template: '{name}-{index}', indexScope: 'nameProtocolExact', onlyWhenDuplicated: true }
       }
     }]);
-    expect(names(out)).toEqual(['HK-1', 'HK-2', 'HK-1', 'JP']);
+    expect(names(out)).toEqual(['HK-1', 'HK-2', 'HK', 'JP']);
   });
 
   it('唯一分组是整条模板跳过，而非把 {index} 渲染成空串', async () => {
