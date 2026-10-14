@@ -449,6 +449,38 @@ describe('rename indexScope=name 同名编号', () => {
   });
 });
 
+describe('rename indexScope=nameExact 精确同名分组', () => {
+  const mk = (host, name) => `trojan://p@${host}:443#${encodeURIComponent(name)}`;
+  const names = out => out.map(u => decodeURIComponent(u.slice(u.lastIndexOf('#') + 1)));
+
+  it('按当前 name 精确分组，不与 cleanName 相同的不同名节点合组', async () => {
+    const urls = [
+      mk('a.example.com', '香港01 3x'),
+      mk('b.example.com', '香港01 5x'),
+      mk('c.example.com', '香港01 5x'),
+      mk('d.example.com', '日本01')
+    ];
+    const out = await runOperatorChain(urls, [{
+      type: 'rename',
+      params: { template: { enabled: true, template: '{name}-{index}', indexScope: 'nameExact' } }
+    }]);
+    expect(names(out)).toEqual(['香港01 3x-1', '香港01 5x-1', '香港01 5x-2', '日本01-1']);
+  });
+
+  it('nameProtocolExact 下同名的不同协议各自计数', async () => {
+    const urls = [
+      'trojan://p@a.example.com:443#HK',
+      'trojan://p@b.example.com:443#HK',
+      'vless://00000000-0000-0000-0000-000000000001@c.example.com:443?type=tcp#HK'
+    ];
+    const out = await runOperatorChain(urls, [{
+      type: 'rename',
+      params: { template: { enabled: true, template: '{name}-{index}', indexScope: 'nameProtocolExact' } }
+    }]);
+    expect(names(out)).toEqual(['HK-1', 'HK-2', 'HK-1']);
+  });
+});
+
 describe('opScript set-field 同时改 name 与 server/port（vmess 组合）', () => {
   const vmess = 'vmess://eyJ2IjoiMiIsInBzIjoi8J+HuvCfh7ggVVMgTm9kZSAwMSIsImFkZCI6InVzMS5leGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImFpZCI6MCwibmV0IjoidGNwIiwidHlwZSI6Im5vbmUiLCJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6InRscyJ9';
   it('name 与 port 同时生效，其余字段保留', async () => {

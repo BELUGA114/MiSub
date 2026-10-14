@@ -83,13 +83,19 @@ function opFilter(nodes, params) {
 
 /**
  * 计算分组计数的分组键：供结构化 rename 的 indexScope 与 limit 的 groupBy 共用。
- * region/regionProtocol 依赖富化后的 enriched.regionZh；name 用 cleanName 兜底原始 name。
+ * region/regionProtocol 依赖富化后的 enriched.regionZh；name 用 cleanName 兜底原始 name；
+ * nameExact/nameProtocolExact 只读当前 name，用于“显示名完全一致才算同名”的场景。
  */
 function nodeGroupKey(record, enriched, scope) {
     if (scope === 'region') return `r:${enriched.regionZh || 'Other'}`;
     if (scope === 'protocol') return `p:${record.protocol}`;
     if (scope === 'regionProtocol') return `rp:${enriched.regionZh || 'Other'}|${record.protocol}`;
     if (scope === 'name') return `n:${record.metadata?.cleanName || record.name}`;
+    // 精确同名：不读 cleanName，区分大小写、不 trim。显示名完全一致才需要编号区分，
+    // 例如“香港01 3x”与“香港01 5x”在客户端里本就是两个不同的名字。
+    if (scope === 'nameExact') return `ne:${record.name}`;
+    // 精确同名 + 协议：同名的不同协议各自成组、各自从 1 递增。
+    if (scope === 'nameProtocolExact') return `np:${record.name}|${record.protocol}`;
     return 'global';
 }
 
