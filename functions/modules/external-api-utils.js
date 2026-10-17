@@ -3,7 +3,6 @@ import { KV_KEY_SETTINGS } from './config.js';
 import { createJsonResponse, JSON_BODY_LIMITS, readJsonWithLimit } from './utils.js';
 
 export async function getExternalStorageAdapter(env) {
-  if (env?.__TEST_STORAGE_ADAPTER) return env.__TEST_STORAGE_ADAPTER;
   const storageType = await StorageFactory.getStorageType(env);
   return StorageFactory.createAdapter(env, storageType);
 }

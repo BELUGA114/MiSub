@@ -64,7 +64,6 @@ export function normalizeCustomRuleTemplates(input = []) {
 }
 
 async function getStorageAdapter(env) {
-    if (env?.__TEST_STORAGE_ADAPTER) return env.__TEST_STORAGE_ADAPTER;
     const storageType = await StorageFactory.getStorageType(env);
     return StorageFactory.createAdapter(env, storageType);
 }

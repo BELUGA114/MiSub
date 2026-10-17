@@ -1167,6 +1167,11 @@ function parseAnytlsUrl(url) {
             || params.get('certSha256');
         if (pinnedPeerCertSha256) proxy.pinnedPeerCertSha256 = pinnedPeerCertSha256;
 
+        // padding 与导出端对称，避免 Clash → URL → Clash 时静默丢失
+        const padding = params.get('padding');
+        if (padding === 'true') proxy.padding = true;
+        else if (padding === 'false') proxy.padding = false;
+
         proxy.udp = true;
         return proxy;
     } catch (e) {

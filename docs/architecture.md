@@ -472,15 +472,13 @@ tests/unit/
 
 当前重点测试类型：
 
-- 订阅请求回归：`misub-request-regression.test.js`
-- 模板管线：`template-pipeline.test.js`
-- 内置生成器：`builtin-*-generator.test.js`
-- 协议转换：`protocolConverter.test.js`、`node-utils.test.js`、`node-transformer.test.js`
-- UA 判断：`user-agent-utils.test.js`
-- 存储：`storage-adapter-row-level.test.js`
-- 安全：`security-hardening.test.js`
-- Fetch Proxy：`fetch-proxy-utils.test.js`、`node-fetcher-fetch-proxy-ua.test.js`
-- 前端组件回归：若干 `*.test.js`
+- 订阅请求主流程回归：`misub-request-regression.test.js`
+- 模板与内置输出：`template-pipeline.test.js`、`builtin-target-smoke.test.js`、`builtin-conversion-matrix.test.js`
+- 协议转换与 xhttp：`protocol-conversion-fixtures.test.js`、`protocol-roundtrip-edge-fields.test.js`、`protocolConverter.test.js`、`xhttp-extra.test.js`
+- 算子链：`operator-runner.test.js`
+- 存储与迁移：`storage-adapter-row-level.test.js`、`storage-migration-completeness.test.js`、`d1-in-query-limit-regression.test.js`
+- 安全边界：`security-hardening.test.js`、`api-route-boundaries.test.js`、`external-api-route-boundaries.test.js`、`cors-csrf-middleware.test.js`、`admin-password-kv-outage.test.js`、`outbound-ssrf-boundaries.test.js`
+- 公开页面渲染安全：`custom-public-renderer.test.js`
 
 推荐测试命令：
 
@@ -492,7 +490,7 @@ npm run build
 针对协议或订阅输出 bug，优先运行相关小测试，再运行更宽的订阅管线测试。例如：
 
 ```bash
-npm run test:run -- tests/unit/node-utils.test.js tests/unit/template-pipeline.test.js tests/unit/misub-request-regression.test.js
+npm run test:run -- tests/unit/protocol-conversion-fixtures.test.js tests/unit/template-pipeline.test.js tests/unit/misub-request-regression.test.js
 ```
 
 ## 14. 开发与排查建议

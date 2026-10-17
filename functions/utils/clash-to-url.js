@@ -77,7 +77,8 @@ export function convertClashProxyToUrl(proxy) {
                 path: '',
                 tls: proxy.tls ? 'tls' : '',
                 sni: proxy.sni || proxy.servername || '',
-                fp: proxy['client-fingerprint'] || ''
+                fp: proxy['client-fingerprint'] || '',
+                alpn: Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : (proxy.alpn || '')
             };
 
             // Mapping network specific options
@@ -197,6 +198,10 @@ export function convertClashProxyToUrl(proxy) {
             if (proxy.flow) params.push(`flow=${proxy.flow}`);
             const sniVal = proxy.servername !== undefined ? proxy.servername : proxy.sni;
             if (sniVal !== undefined) params.push(`sni=${encodeURIComponent(sniVal)}`);
+            if (proxy.alpn) {
+                const alpn = Array.isArray(proxy.alpn) ? proxy.alpn.join(',') : proxy.alpn;
+                params.push(`alpn=${encodeURIComponent(alpn)}`);
+            }
             if (proxy['client-fingerprint']) params.push(`fp=${encodeURIComponent(proxy['client-fingerprint'])}`);
             if (proxy['dialer-proxy']) params.push(`dp=${encodeURIComponent(proxy['dialer-proxy'])}`);
             return `vless://${uuid}@${uriServer}:${port}?${params.join('&')}#${encodeURIComponent(name)}`;
