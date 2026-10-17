@@ -93,7 +93,43 @@ mihomo 侧已有完整承载能力：`adapter/outbound/vless.go` 的 `XHTTPOptio
 | `xhttpSettings.path` / `host` / `headers` | `path` / `host` / `headers` | 与上行同名字段一致 |
 | `xhttpSettings.extra.xmux` | `reuse-settings` | 与上行 xmux 同一映射 |
 
-`realitySettings.serverName` / `realitySettings.fingerprint` 的优先级是对 Xray 语义的显式对齐（REALITY 客户端实际读取的是 `realitySettings`，`tlsSettings` 在该 security 下不参与）；mihomo 的 `common/convert/v.go` 没有这两项映射，这里有意补足，仅影响下行 REALITY 的 SNI 与指纹。
+### 下行 REALITY 的 SNI / 指纹优先级
+
+Xray 侧的实际行为：
+
+- `security=reality` 时，splithttp 的拨号闭包先判断 `realityConfig`，命中后直接 `reality.UClient`，`tlsConfig` 不参与（`dialer.go:133-140`）；HTTP 版本判定也因 REALITY 恒为 H2（`dialer.go:82-85`）。
+- `reality.UClient` 只读取 `reality.Config` 的 `server_name` 与 `Fingerprint`：`server_name` 为空时回退到目标地址（`reality.go:129-130`）；`Fingerprint` 为空时 `tls.GetFingerprint("")` 返回 Chrome（`tls.go:187-191`）。
+- 因此 `security=reality` 下 `tlsSettings.serverName` / `tlsSettings.fingerprint` / `tlsSettings.alpn` 都不生效。
+
+mihomo 侧则没有嵌套结构：`XHTTPDownloadSettings` 是扁平字段，REALITY 握手实际消费 `servername` 与 `client-fingerprint`（`adapter/outbound/vless.go` 传给 `vmess.TLSConfig`；`transport/vmess/tls.go:114-116` 走 `GetRealityConn`，`130-132` 强制要求非空指纹）。所以必须把 `realitySettings` 的值写进这两个扁平字段。
+
+取值阶梯（空字符串一律视为“未提供”，与 mihomo `setStr` 只接受非空串一致）：
+
+| 目标字段 | `security=reality` | `security=tls` |
+|---|---|---|
+| `servername` | `realitySettings.serverName` 非空 → `tlsSettings.serverName` 非空 → 补偿阶段写 `''` | `tlsSettings.serverName` 非空 → 补偿阶段写 `''` |
+| `client-fingerprint` | `realitySettings.fingerprint` 非空 → `tlsSettings.fingerprint` 非空 → 补偿阶段写 `'chrome'` | `tlsSettings.fingerprint` 非空 → 补偿阶段写 `'chrome'` |
+| `alpn` | 恒为 `[]`（Xray 对 REALITY 强制 H2，同时避免继承上行 `[h3]`） | `tlsSettings.alpn` → 补偿阶段写 `[]` |
+
+说明：
+
+- 冲突时 `realitySettings` 优先，绝不反向。
+- 回退到 `tlsSettings` 是兼容性扩展，不是 Xray 语义：Xray 在 REALITY 下完全忽略 `tlsSettings`。该级回退只在 `realitySettings` 对应项缺失或为空时生效，用于兼容把指纹/SNI 只写进 `tlsSettings` 的非规范分享链接；若严格照搬 Xray，此时 SNI 会退化为目标地址、指纹退化为 Chrome。如果实现评审倾向 strict，可以删掉这一级回退，其余规则不变。
+- `publicKey` / `shortId` 同理只从 `realitySettings` 取，不读 `tlsSettings`。
+- mihomo 的 `support-x25519mlkem768` 在 Xray 侧没有对应字段，下行按上行 URL 的既有策略处理（默认不写入），不在本表内。
+
+### 实现位置取舍：为什么新建模块而不是继续内联
+
+PR #451 的内联实现是当时范围内的正确选择：只有 5 个字段、只有 URL → Clash 一个方向、只有 `parseVlessUrl` 一个调用点，内联的 diff 最小、语义最直接。
+
+本次需求已经变成约 20 个字段 × 双向 × 两个文件：
+
+- 继续内联会让 `parseVlessUrl`（`url-to-clash.js:113-337`）再增约 200 行，把 URL 解析、xhttp 字段映射、嵌套 `xmux`/`downloadSettings` 三件事混在一个函数里。
+- 反向序列化必须落在 `clash-to-url.js`。若不抽模块，只能把同一张映射表复制一份到另一个文件，后续 mihomo 加字段时两边极易漂移。
+- 抽成纯函数后，字段表只有一份，单元测试可以直接断言输入/输出对象，不必为每个字段构造完整分享链接；调用点各自只增加几行。
+- 这不是结构性重构：新文件放在既有的 `functions/utils/` 下，只导出两个纯函数，无新依赖、无数据流变化、不影响其他生成器；上游 PR #451 的内联段本身是连续区块，可整体替换，review 时按字段表逐行核对即可。
+
+因此“最小化改动”在这里按“最小语义变更与最小影响面”理解，而不是“最少文件数”：新增一个职责单一的模块，比在一个 1600 行、承载多协议的转换器里继续堆字段更符合仓库现状与最佳实践。只有当字段集很小且永远只需要单向映射时（即 #451 的情形），内联才更优。
 
 ### mihomo 承载边界（必须在实现时遵守）
 

@@ -78,9 +78,12 @@ applyDownloadInheritanceGuard(xhttpOpts, { upstreamReality })
    - 其余情况不写。
 
 3. **下行 TLS 开启时（`ds.tls === true`），逐项显式覆盖**
-   - `servername`：`tlsSettings.serverName`（REALITY 时优先 `realitySettings.serverName`）；未给出时写 `''`。空串是有效覆盖：mihomo 的 `lo.FromPtrOr` 取到 `""` 后不再回退上行，TLS 拨号按 download host 处理，与 Xray “serverName 为空时使用目标地址”一致。
-   - `client-fingerprint`：非 REALITY 时取 `tlsSettings.fingerprint`，REALITY 时取 `realitySettings.fingerprint`；未给出时写 `'chrome'`。Xray 的 `tls.GetFingerprint("")` 默认就是 Chrome，REALITY 客户端也要求非空指纹。
-   - `alpn`：取 `tlsSettings.alpn`；未给出时写 `[]`。长度为 0 时 mihomo 走 H2 分支，等价于 Xray 的默认 H2；REALITY 下由此避免继承上行的 `[h3]`。
+
+   下列字段的“Xray 值”已由补全 spec 的取值阶梯解析完成（REALITY 以 `realitySettings` 为准、`tlsSettings` 仅作兼容回退），补偿步骤只负责把缺省值具体化、把继承切断，不重新判断 REALITY 的优先级。
+
+   - `servername`：取补全阶段写入的 `servername`；未给出时写 `''`。空串是有效覆盖：mihomo 的 `lo.FromPtrOr` 取到 `""` 后不再回退上行，TLS 拨号按 download host 处理，与 Xray “serverName 为空时使用目标地址”一致。
+   - `client-fingerprint`：取补全阶段写入的 `client-fingerprint`（REALITY 缺省 Chrome、普通 TLS 缺省 Chrome）；未给出时写 `'chrome'`。REALITY 下该字段不允许为空，否则 mihomo 运行时报错。
+   - `alpn`：取补全阶段写入的 `alpn`；未给出时写 `[]`。长度为 0 时 mihomo 走 H2 分支，等价于 Xray 的默认 H2；REALITY 下由此避免继承上行的 `[h3]`。
    - `skip-cert-verify`：`tlsSettings.allowInsecure === true`，否则显式 `false`。
 
 4. **下行 TLS 关闭时**
