@@ -578,6 +578,21 @@ custom_proxy_group=🤖 AI 服务\`select\`[]🚀 节点选择\`[]DIRECT
         expect(parsed.rules).toContain('RULE-SET,ai_0,🤖 AI 服务');
     });
 
+    it.each([
+        ['https://rules.example/geo/geosite/cn.mrs', 'domain'],
+        ['https://rules.example/geo/geoip/cn.mrs', 'ipcidr'],
+        ['https://rules.example/adblock.mrs', 'domain']
+    ])('renders a usable MRS provider for %s', (url, behavior) => {
+        const rendered = renderClashFromIniTemplate(
+            `[custom]\nruleset=Node,${url}\nruleset=Node,[]FINAL\ncustom_proxy_group=Node\`select\`[]DIRECT\`.*`,
+            { proxies: [{ name: 'proxy', type: 'trojan', server: 'example.com', port: 443, password: 'pass' }], ruleLevel: 'none' }
+        );
+        const config = yaml.load(rendered);
+        const [name, provider] = Object.entries(config['rule-providers'])[0];
+        expect(provider).toMatchObject({ behavior, format: 'mrs', url, path: `./ruleset/${name}.mrs` });
+        expect(config.rules).toContain(`RULE-SET,${name},Node`);
+    });
+
     it('omits Clash-only VMess udp_relay_mode from sing-box template output', () => {
         const rendered = renderSingboxFromIniTemplate(
             '[Proxy Group]\nNode = select, VMessNode\n[Rule]\nMATCH,Node',

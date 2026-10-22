@@ -98,9 +98,20 @@ function toClashRuleProviderUrl(sourceUrl) {
     }
 }
 
+function isMrsProviderUrl(providerUrl) {
+    try {
+        return /\.mrs$/i.test(new URL(providerUrl).pathname);
+    } catch {
+        return false;
+    }
+}
+
 function getRuleProviderBehavior(providerUrl) {
     try {
-        const fileName = new URL(providerUrl).pathname.split('/').pop()?.replace(/\.(yaml|yml|list|txt|conf)$/i, '') || '';
+        const pathname = new URL(providerUrl).pathname;
+        // MRS 仅支持 domain / ipcidr；geoip 来源走 ipcidr，其他来源走 domain。
+        if (/\.mrs$/i.test(pathname)) return /\/geoip\//i.test(pathname) ? 'ipcidr' : 'domain';
+        const fileName = pathname.split('/').pop()?.replace(/\.(yaml|yml|list|txt|conf)$/i, '') || '';
         if (ACL4SSR_IPCIDR_PROVIDER_FILES.has(fileName.toLowerCase())) return 'ipcidr';
     } catch {
         // ignore invalid provider url shapes and keep default behavior
@@ -137,7 +148,7 @@ export function renderClashFromTemplateModel(model) {
         let nameHint = 'rs';
         try {
             const urlPath = new URL(providerUrl).pathname;
-            const fileName = urlPath.split('/').pop()?.replace(/\.(yaml|yml|list|txt|conf)$/i, '') || '';
+            const fileName = urlPath.split('/').pop()?.replace(/\.(yaml|yml|list|txt|conf|mrs)$/i, '') || '';
             if (fileName) {
                 nameHint = fileName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
             }
@@ -148,13 +159,15 @@ export function renderClashFromTemplateModel(model) {
         const providerName = `${nameHint}_${providerCounter++}`;
         ruleProviderMap.set(providerUrl, providerName);
         const usesTextList = /\.(list|txt)$/i.test(providerUrl);
+        const usesMrs = isMrsProviderUrl(providerUrl);
         ruleProviders[providerName] = {
             type: 'http',
             behavior: getRuleProviderBehavior(providerUrl),
             url: providerUrl,
-            path: `./ruleset/${providerName}.${usesTextList ? 'list' : 'yaml'}`,
+            path: `./ruleset/${providerName}.${usesTextList ? 'list' : usesMrs ? 'mrs' : 'yaml'}`,
             interval: 86400,
-            ...(usesTextList ? { format: 'text' } : {})
+            ...(usesTextList ? { format: 'text' } : {}),
+            ...(usesMrs ? { format: 'mrs' } : {})
         };
     });
 

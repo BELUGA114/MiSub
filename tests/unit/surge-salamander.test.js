@@ -22,4 +22,8 @@ describe.each(renderers)('Surge Salamander output (%s)', (_name, render) => {
         expect(render({ ...proxy, obfs: 'other' })).not.toContain('salamander-password=');
     });
 
+    it('preserves a comma in the obfuscation password as one parameter value', () => {
+        expect(render({ ...proxy, 'obfs-password': 'secret,word' })).toContain('salamander-password="secret,word"');
+    });
+
 });
