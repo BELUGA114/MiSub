@@ -294,10 +294,10 @@ describe('serializeXhttpExtra 反向序列化', () => {
             downloadSettings: {
                 address: 'dl.example.com',
                 port: 443,
+                network: 'xhttp',
                 security: 'tls',
                 tlsSettings: {
                     serverName: 'dl.example.com',
-                    fingerprint: 'chrome',
                     alpn: ['h2', 'http/1.1'],
                     allowInsecure: true
                 },

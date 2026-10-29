@@ -172,9 +172,23 @@ export function convertClashProxyToUrl(proxy) {
             const xhttpOpts = proxy['xhttp-opts'] || proxy.xhttpOpts;
             if (xhttpOpts) {
                 if (xhttpOpts.path) params.push(`path=${encodeURIComponent(xhttpOpts.path)}`);
-                if (xhttpOpts.host) params.push(`host=${encodeURIComponent(xhttpOpts.host)}`);
+                const headerHost = Object.entries(xhttpOpts.headers || {}).find(
+                    ([key]) => key.toLowerCase() === 'host'
+                )?.[1];
+                const xhttpHost = xhttpOpts.host || headerHost;
+                if (xhttpHost) params.push(`host=${encodeURIComponent(xhttpHost)}`);
                 if (xhttpOpts.mode) params.push(`mode=${encodeURIComponent(xhttpOpts.mode)}`);
-                const extraObj = serializeXhttpExtra(xhttpOpts);
+                // 反向导出时物化 mihomo 下行对上行安全配置的继承。
+                const extraObj = serializeXhttpExtra(xhttpOpts, {
+                    server: proxy.server,
+                    port: proxy.port,
+                    tls: proxy.tls === true,
+                    servername: proxy.servername ?? proxy.sni,
+                    clientFingerprint: proxy['client-fingerprint'],
+                    alpn: proxy.alpn,
+                    skipCertVerify: proxy['skip-cert-verify'] === true,
+                    realityOpts: proxy['reality-opts']
+                });
                 if (extraObj) {
                     params.push(`extra=${encodeURIComponent(JSON.stringify(extraObj))}`);
                 }

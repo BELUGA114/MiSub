@@ -3,7 +3,7 @@
  */
 
 import { extractNodeMetadata } from '../modules/utils/metadata-extractor.js';
-import { parseXhttpExtra, parseXhttpExtraParam } from './xhttp-extra.js';
+import { parseXhttpExtra, parseXhttpExtraParam, applyDownloadInheritanceGuard } from './xhttp-extra.js';
 
 /**
  * 解析 URL 查询参数
@@ -184,7 +184,13 @@ function parseVlessUrl(url) {
                     const { headers: extraHeaders, ...restFields } = extraFields;
                     Object.assign(xhttpOpts, restFields);
                     if (extraHeaders) {
-                        xhttpOpts.headers = { ...extraHeaders, ...xhttpOpts.headers };
+                        const mergedHeaders = { ...extraHeaders };
+                        if (xhttpOpts.headers?.Host) {
+                            for (const key of Object.keys(mergedHeaders)) {
+                                if (key.toLowerCase() === 'host') delete mergedHeaders[key];
+                            }
+                        }
+                        xhttpOpts.headers = { ...mergedHeaders, ...xhttpOpts.headers };
                     }
                 }
             }
@@ -283,17 +289,12 @@ function parseVlessUrl(url) {
             proxy['dialer-proxy'] = params.get('dp');
         }
 
-        // xhttp download-settings 的 REALITY 继承补偿：
-        // mihomo 中 download-settings 若无自身 reality-opts，会继承上行的 REALITY 配置
-        // （adapter/outbound/vless.go:760）。当上行为 REALITY、下行为普通 TLS 回源时，
-        // 继承会导致下行拨号失败（H3 不支持 REALITY / 用上行公钥握手 CDN 认证失败）。
-        // 由于本链路输入恒为 Xray 分享链接，其 downloadSettings 是独立 StreamConfig，
-        // 从不继承上行 security，故「下行无 reality-opts」即「下行非 REALITY」。
-        // 显式写入空 public-key，令 mihomo 关闭下行 REALITY 继承（reality.go 空 key → nil）。
-        const dlSettings = proxy['xhttp-opts'] && proxy['xhttp-opts']['download-settings'];
-        const upstreamPbk = proxy['reality-opts'] && proxy['reality-opts']['public-key'];
-        if (dlSettings && typeof upstreamPbk === 'string' && upstreamPbk !== '' && !dlSettings['reality-opts']) {
-            dlSettings['reality-opts'] = { 'public-key': '' };
+        const xhttpOpts = proxy['xhttp-opts'];
+        if (xhttpOpts) {
+            const publicKey = proxy['reality-opts'] && proxy['reality-opts']['public-key'];
+            applyDownloadInheritanceGuard(xhttpOpts, {
+                upstreamReality: typeof publicKey === 'string' && publicKey !== ''
+            });
         }
 
         return proxy;
