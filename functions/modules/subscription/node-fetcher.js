@@ -1,6 +1,7 @@
 import { parseNodeList } from '../utils/node-parser.js';
 import { fetchWithRetry } from '../../services/fetch-utils.js';
 import { buildFetchProxyUrl } from '../../utils/fetch-proxy-utils.js';
+import { readSubscriptionNodeCache, buildSubscriptionFilterFingerprint } from '../../services/subscription-service.js';
 import {
     filterNodeObjects,
     parseFilterRuleText,
@@ -19,9 +20,24 @@ import {
  * @param {boolean} plusAsSpace - 是否将名称中的 + 视为空格
  * @returns {Promise<Object>} 节点获取结果
  */
-export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, customUserAgent = null, debug = false, excludeRules = '', fetchProxy = null, skipCertVerify = false, plusAsSpace = false, enableNodeCache = false) {
+export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, customUserAgent = null, debug = false, excludeRules = '', fetchProxy = null, skipCertVerify = false, plusAsSpace = false, enableNodeCache = false, storageAdapter = null, subscription = null) {
     // 自动检测调试 Token
     const shouldDebug = debug || (url && url.includes('b0b422857bb46aba65da8234c84f38c6'));
+
+    // 上游失败时与输出链路共用保护性缓存；成功但无节点时，过滤配置须保持一致。
+    const fallbackToNodeCache = async (upstreamError, requireFingerprintMatch) => {
+        if (!enableNodeCache || !storageAdapter || !subscription) return null;
+        const cached = await readSubscriptionNodeCache(storageAdapter, subscription);
+        if (!cached) return null;
+        if (requireFingerprintMatch && typeof cached.filterFingerprint === 'string' &&
+            cached.filterFingerprint !== buildSubscriptionFilterFingerprint(subscription)) return null;
+        const nodes = parseNodeList(cached.nodes.join('\n'), { plusAsSpace });
+        if (nodes.length === 0) return null;
+        return {
+            subscriptionName, url, success: true, nodes, error: upstreamError,
+            fromCache: true, cacheUpdatedAt: cached.updatedAt || null
+        };
+    };
 
     try {
         const effectiveUserAgent = customUserAgent && customUserAgent.trim() !== ''
@@ -54,12 +70,15 @@ export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, c
         });
 
         if (!response.ok) {
+            const upstreamError = `HTTP ${response.status}: ${response.statusText}`;
+            const cachedResult = await fallbackToNodeCache(upstreamError, false);
+            if (cachedResult) return cachedResult;
             return {
                 subscriptionName,
                 url,
                 success: false,
                 nodes: [],
-                error: `HTTP ${response.status}: ${response.statusText}`
+                error: upstreamError
             };
         }
 
@@ -80,6 +99,11 @@ export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, c
             parsedNodes = applyExcludeRulesToNodes(parsedNodes, excludeRules);
         }
 
+        if (parsedNodes.length === 0) {
+            const cachedResult = await fallbackToNodeCache(null, true);
+            if (cachedResult) return cachedResult;
+        }
+
         return {
             subscriptionName,
             url,
@@ -91,6 +115,8 @@ export async function fetchSubscriptionNodes(url, subscriptionName, userAgent, c
         if (shouldDebug) {
             console.debug(`[DEBUG PREVIEW] Error: ${e.message}`);
         }
+        const cachedResult = await fallbackToNodeCache(e.message, false);
+        if (cachedResult) return cachedResult;
         return {
             subscriptionName,
             url,

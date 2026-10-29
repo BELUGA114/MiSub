@@ -81,7 +81,15 @@ export function buildSubscriptionNodeCacheKey(sub = {}) {
     return `node_cache_subscription_url_${Math.abs(hash).toString(36)}`;
 }
 
-async function readSubscriptionNodeCache(storage, sub) {
+// 区分用户改动过滤造成的缩减与上游响应被截断，避免回退到旧规则的节点。
+export function buildSubscriptionFilterFingerprint(sub = {}) {
+    const exclude = typeof sub.exclude === 'string' ? sub.exclude.trim() : '';
+    const operators = Array.isArray(sub.operators) ? JSON.stringify(sub.operators) : '';
+    const nodeTransform = sub.nodeTransform ? JSON.stringify(sub.nodeTransform) : '';
+    return JSON.stringify([exclude, operators, nodeTransform]);
+}
+
+export async function readSubscriptionNodeCache(storage, sub) {
     if (!storage?.get) return null;
     try {
         const cached = await storage.get(buildSubscriptionNodeCacheKey(sub));
@@ -104,6 +112,7 @@ async function writeSubscriptionNodeCache(storage, sub, nodes) {
             nodes: realNodes,
             nodeCount: realNodes.length,
             updatedAt: new Date().toISOString(),
+            filterFingerprint: buildSubscriptionFilterFingerprint(sub),
             sourceId: sub?.id || null,
             sourceName: sub?.name || '',
             sourceUrl: sub?.url || ''
@@ -419,6 +428,9 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
             const cached = await readSubscriptionNodeCache(storage, sub);
             return cached?.nodes || [];
         };
+        const hasFilterConfigChanged = (cached) =>
+            cached && typeof cached.filterFingerprint === 'string' &&
+            cached.filterFingerprint !== buildSubscriptionFilterFingerprint(sub);
 
         try {
             const customUserAgent = typeof sub.customUserAgent === 'string' ? sub.customUserAgent.trim() : '';
@@ -485,13 +497,13 @@ const prependGroupName = profilePrefixSettings?.prependGroupName ?? false;
 
             const realNodes = validNodes.filter(isRealProxyNode);
             if (cacheEnabled && realNodes.length === 0) {
-                return (await readCachedNodes()).join('\n');
-            }
-            if (cacheEnabled) {
-                const cachedNodes = await readCachedNodes();
-                if (isSuspiciousNodeCountDrop(cachedNodes.length, realNodes.length)) {
-                    console.warn(`[SubscriptionCache] Refusing suspicious node-count drop for ${sub.id || sub.url} (${cachedNodes.length} -> ${realNodes.length})`);
-                    return cachedNodes.join('\n');
+                const cached = await readSubscriptionNodeCache(storage, sub);
+                if (!hasFilterConfigChanged(cached)) return (cached?.nodes || []).join('\n');
+            } else if (cacheEnabled) {
+                const cached = await readSubscriptionNodeCache(storage, sub);
+                if (!hasFilterConfigChanged(cached) && isSuspiciousNodeCountDrop(cached?.nodes?.length || 0, realNodes.length)) {
+                    console.warn(`[SubscriptionCache] Refusing suspicious node-count drop for ${sub.id || sub.url} (${cached.nodes.length} -> ${realNodes.length})`);
+                    return cached.nodes.join('\n');
                 }
             }
             if (!cacheEnabled && realNodes.length === 0) {
