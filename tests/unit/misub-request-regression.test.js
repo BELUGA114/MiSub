@@ -92,6 +92,41 @@ describe('handleMisubRequest regression coverage', () => {
         }
     });
 
+    it.each(['', '&refresh=1'])('serves current subscription filters through aggregate cache (%s)', async (refresh) => {
+        const nodes = Array.from({ length: 20 }, (_, index) =>
+            `trojan://pass${index}@proxy${index}.example.com:443#${index === 0 ? 'Keep' : `Drop${index}`}`
+        );
+        const subscriptions = [{ id: 'airport', name: 'Airport', enabled: true, enableNodeCache: true, url: 'https://airport.example/sub' }];
+        const adapter = createStorageAdapter({
+            settings: {
+                mytoken: 'stable-token', enableFlagEmoji: false, enableTrafficNode: false,
+                defaultPrefixSettings: { enableSubscriptions: false, enableManualNodes: false }
+            },
+            subscriptions
+        });
+        createAdapter.mockReturnValue(adapter);
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(nodes.join('\n'), { status: 200 })));
+        silenceExpectedRequestLogs();
+        const { handleMisubRequest } = await import('../../functions/modules/subscription/main-handler.js');
+        const readOutput = async () => {
+            const response = await handleMisubRequest({
+                request: new Request(`https://misub.example/stable-token?target=nodes${refresh}`, { headers: { 'User-Agent': 'ClashMeta' } }),
+                env: {}, waitUntil: vi.fn()
+            });
+            expect(response.status).toBe(200);
+            const text = (await response.text()).trim();
+            return text ? text.split('\n') : [];
+        };
+
+        expect(await readOutput()).toEqual(nodes);
+        subscriptions[0] = { ...subscriptions[0], exclude: 'keep:Keep' };
+        expect(await readOutput()).toEqual([nodes[0]]);
+        expect(await readOutput()).toEqual([nodes[0]]);
+        subscriptions[0] = { ...subscriptions[0], exclude: 'keep:Missing' };
+        expect(await readOutput()).toEqual([]);
+        expect(await readOutput()).toEqual([]);
+    });
+
     it('normalizes external converter hosts and uses the current base64 subscription as its data source', async () => {
         const subscriptions = [{
             id: 'sub-a',

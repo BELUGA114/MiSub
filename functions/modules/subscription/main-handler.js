@@ -1,6 +1,6 @@
 import { StorageFactory } from '../../storage-adapter.js';
 import { migrateConfigSettings, formatBytes, migrateProfileIds, base64EncodeUtf8 } from '../utils.js';
-import { generateCombinedNodeList } from '../../services/subscription-service.js';
+import { generateCombinedNodeList, buildSubscriptionFilterFingerprint } from '../../services/subscription-service.js';
 import { sendEnhancedTgNotification, tgEscape } from '../notifications.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS as defaultSettings, DEFAULT_SUBCONVERTER_BACKEND } from '../config.js';
 import { createDisguiseResponse } from '../disguise-page.js';
@@ -30,6 +30,15 @@ function maskSensitiveLogValue(value) {
 }
 
 const PROFILE_DOWNLOAD_COUNT_PREFIX = 'misub_profile_download_count_';
+
+async function buildSubscriptionFilterCacheVariant(subscriptions) {
+    const filters = subscriptions.map(sub => [sub.id || sub.url, buildSubscriptionFilterFingerprint(sub)]);
+    const emptyFingerprint = buildSubscriptionFilterFingerprint();
+    if (filters.every(([, fingerprint]) => fingerprint === emptyFingerprint)) return '';
+
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(filters)));
+    return `filters${Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')}`;
+}
 
 function getProfileDownloadCountKey(profile) {
     return `${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.customId || profile.id}`;
@@ -604,10 +613,12 @@ export async function handleMisubRequest(context) {
     // 若不透传则默认补齐，导致关闭 emoji 或 ?emoji=false 不生效）。
     const shouldKeepEmoji = resolveKeepEmoji(config, emojiNodeTransform);
     const emojiVariant = `emoji${shouldKeepEmoji ? '1' : '0'}`;
+    // 单订阅过滤规则变化后须使用对应的合并缓存，避免旧缓存的缩减保护挡住新结果。
+    const filterVariant = await buildSubscriptionFilterCacheVariant(targetMisubs);
     const cacheKey = generateCacheKey(
         profileIdentifier ? 'profile' : 'token',
         profileIdentifier || token,
-        emojiVariant
+        filterVariant ? `${emojiVariant}_${filterVariant}` : emojiVariant
     );
 
     // 检查是否强制刷新（通过 URL 参数）
